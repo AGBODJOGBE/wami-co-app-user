@@ -33,3 +33,8 @@ final class UnavailableFailure extends Failure {
 final class UnexpectedFailure extends Failure {
   const UnexpectedFailure([super.message = 'Une erreur inattendue est survenue.']);
 }
+
+/// Session expirée ou identifiants refusés.
+final class UnauthorizedFailure extends Failure {
+  const UnauthorizedFailure([super.message = 'Session expirée. Reconnectez-vous.']);
+}

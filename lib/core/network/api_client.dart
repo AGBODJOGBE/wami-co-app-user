@@ -5,7 +5,12 @@ import '../error/exceptions.dart';
 import 'auth_interceptor.dart';
 
 /// Client HTTP partagé par toutes les sources de données distantes.
-/// Il ne renvoie que du JSON décodé et ne lève que des exceptions de `core/error`.
+///
+/// Le back (wami-co) répond `{ "success": true, "data": … }` ou `{ "success": false, "error": … }`
+/// (où `error` est un texte ou un objet `{ code, message }`). Ce client :
+/// - rend le contenu de `data` (une liste est rendue sous la clé `items`) ;
+/// - rend le corps entier quand il n'y a pas de `data` (ex. `verify-otp`) ;
+/// - ne lève que des exceptions de `core/error`.
 class ApiClient {
   ApiClient(AppConfig config, AuthInterceptor authInterceptor)
       : _dio = Dio(
@@ -20,29 +25,45 @@ class ApiClient {
   final Dio _dio;
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? query}) {
-    return _send(() => _dio.get<Map<String, dynamic>>(path, queryParameters: query));
+    return _send(() => _dio.get<Object?>(path, queryParameters: query));
   }
 
   Future<Map<String, dynamic>> post(String path, {Object? body}) {
-    return _send(() => _dio.post<Map<String, dynamic>>(path, data: body));
+    return _send(() => _dio.post<Object?>(path, data: body));
   }
 
   Future<Map<String, dynamic>> put(String path, {Object? body}) {
-    return _send(() => _dio.put<Map<String, dynamic>>(path, data: body));
+    return _send(() => _dio.put<Object?>(path, data: body));
   }
 
-  Future<Map<String, dynamic>> _send(
-    Future<Response<Map<String, dynamic>>> Function() request,
-  ) async {
+  Future<Map<String, dynamic>> patch(String path, {Object? body}) {
+    return _send(() => _dio.patch<Object?>(path, data: body));
+  }
+
+  Future<Map<String, dynamic>> delete(String path) {
+    return _send(() => _dio.delete<Object?>(path));
+  }
+
+  Future<Map<String, dynamic>> _send(Future<Response<Object?>> Function() request) async {
     try {
-      final response = await request();
-      return response.data ?? <String, dynamic>{};
+      return unwrap((await request()).data);
     } on DioException catch (e) {
-      throw _mapDioError(e);
+      throw mapError(e);
     }
   }
 
-  Exception _mapDioError(DioException e) {
+  /// Extrait le contenu utile d'une réponse du back.
+  static Map<String, dynamic> unwrap(Object? body) {
+    if (body is! Map<String, dynamic>) return <String, dynamic>{};
+    if (!body.containsKey('data')) return body;
+    final data = body['data'];
+    if (data is Map<String, dynamic>) return data;
+    if (data is List<dynamic>) return {'items': data};
+    return <String, dynamic>{};
+  }
+
+  /// Convertit une erreur HTTP en exception de `core/error`.
+  static Exception mapError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionError:
       case DioExceptionType.connectionTimeout:
@@ -50,11 +71,22 @@ class ApiClient {
       case DioExceptionType.sendTimeout:
         return const NetworkException();
       default:
-        final data = e.response?.data;
-        if (data is Map<String, dynamic> && data['code'] is String) {
-          return BusinessRuleException(data['code'] as String, data['message'] as String?);
+        final status = e.response?.statusCode;
+        final body = e.response?.data;
+        final (code, message) = _readError(body);
+        if (status == 401) return UnauthorizedException(message);
+        if (status != null && status >= 400 && status < 500 && status != 429) {
+          return BusinessRuleException(code ?? 'rejected', message);
         }
-        return ServerException(statusCode: e.response?.statusCode, message: e.message);
+        return ServerException(statusCode: status, message: status == 429 ? message : null);
     }
+  }
+
+  static (String?, String?) _readError(Object? body) {
+    if (body is! Map<String, dynamic>) return (null, null);
+    final error = body['error'];
+    if (error is String) return (body['code'] as String?, error);
+    if (error is Map<String, dynamic>) return (error['code'] as String?, error['message'] as String?);
+    return (body['code'] as String?, body['message'] as String?);
   }
 }

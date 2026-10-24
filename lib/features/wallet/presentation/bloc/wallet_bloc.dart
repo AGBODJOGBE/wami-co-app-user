@@ -19,6 +19,11 @@ final class WalletStarted extends WalletEvent {
   const WalletStarted();
 }
 
+/// Déconnexion : remet le portefeuille à zéro pour le prochain utilisateur.
+final class WalletCleared extends WalletEvent {
+  const WalletCleared();
+}
+
 final class WalletBalanceVisibilityToggled extends WalletEvent {
   const WalletBalanceVisibilityToggled();
 }
@@ -125,6 +130,7 @@ class WalletBloc extends Bloc<WalletEvent, WalletState> {
         _transfer = transfer,
         super(const WalletState()) {
     on<WalletStarted>(_onStarted);
+    on<WalletCleared>((e, emit) => emit(const WalletState()));
     on<WalletBalanceVisibilityToggled>((e, emit) => emit(state.copyWith(balanceHidden: !state.balanceHidden)));
     on<WalletFormDataRequested>(_onFormData);
     on<WalletTopUpRequested>(_onTopUp);

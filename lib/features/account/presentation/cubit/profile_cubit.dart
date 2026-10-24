@@ -24,6 +24,9 @@ class ProfileCubit extends Cubit<ProfileState> {
   final GetProfile _get;
   final UpdateProfile _update;
 
+  /// Déconnexion : le profil précédent ne doit pas survivre à l'utilisateur.
+  void reset() => emit(const ProfileState());
+
   Future<void> load() async {
     emit(const ProfileState(status: LoadStatus.loading));
     final r = await _get(const NoParams());

@@ -2,6 +2,9 @@ import '../domain/service_type.dart';
 
 /// Chemins de navigation de l'application.
 abstract final class Routes {
+  // Connexion.
+  static const auth = '/auth';
+
   // Onglets.
   static const home = '/home';
   static const activities = '/activities';

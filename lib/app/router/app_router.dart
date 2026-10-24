@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 
 import '../../features/account/presentation/pages/account_detail_pages.dart';
+import '../../features/auth/presentation/cubit/auth_cubit.dart';
+import '../../features/auth/presentation/cubit/sign_in_cubit.dart';
+import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/account/presentation/pages/account_page.dart';
 import '../../features/activities/presentation/activities_page.dart';
 import '../../features/bus/presentation/cubit/bus_booking_cubit.dart';
@@ -37,14 +42,28 @@ import 'app_shell.dart';
 /// - Chaque parcours (course, livraison, bus, hébergement) est un `ShellRoute` qui
 ///   **fournit le bloc du parcours** à toutes ses étapes, puis le détruit à la sortie.
 class AppRouter {
-  AppRouter();
+  AppRouter(this._auth);
+  final AuthCubit _auth;
 
   final _rootKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
   late final GoRouter config = GoRouter(
     navigatorKey: _rootKey,
     initialLocation: Routes.home,
+    refreshListenable: _AuthRefresh(_auth.stream),
+    redirect: (context, state) {
+      final signedIn = _auth.state.isAuthenticated;
+      final onAuth = state.matchedLocation == Routes.auth;
+      if (!signedIn && !onAuth) return Routes.auth;
+      if (signedIn && onAuth) return Routes.home;
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: Routes.auth,
+        builder: (_, __) => BlocProvider(create: (_) => sl<SignInCubit>(), child: const SignInPage()),
+      ),
+
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
         branches: [
@@ -180,5 +199,20 @@ class AppRouter {
       builder: (_, s) => build(s),
       routes: routes,
     );
+  }
+}
+
+/// Fait réévaluer les redirections du routeur à chaque changement de session.
+class _AuthRefresh extends ChangeNotifier {
+  _AuthRefresh(Stream<AuthState> stream) {
+    _sub = stream.listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<AuthState> _sub;
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
   }
 }

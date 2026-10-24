@@ -23,3 +23,9 @@ class BusinessRuleException implements Exception {
   final String code;
   final String? message;
 }
+
+/// Jeton refusé par le serveur (401) : il faut se reconnecter.
+class UnauthorizedException implements Exception {
+  const UnauthorizedException([this.message]);
+  final String? message;
+}

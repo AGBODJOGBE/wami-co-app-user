@@ -1,3 +1,5 @@
+import '../../core/auth/current_session.dart';
+import '../../core/auth/session_store.dart';
 import '../../core/config/app_config.dart';
 import '../../core/data/fake_backend.dart';
 import '../../core/di/service_locator.dart';
@@ -13,6 +15,12 @@ import '../../features/account/presentation/cubit/support_cubit.dart';
 import '../../features/activities/data/activity_repository_impl.dart';
 import '../../features/activities/domain/activity.dart';
 import '../../features/activities/presentation/activities_page.dart';
+import '../../features/auth/data/datasources/auth_data_sources.dart';
+import '../../features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/auth/domain/usecases/auth_usecases.dart';
+import '../../features/auth/presentation/cubit/auth_cubit.dart';
+import '../../features/auth/presentation/cubit/sign_in_cubit.dart';
 import '../../features/bus/data/datasources/bus_data_sources.dart';
 import '../../features/bus/data/repositories/bus_repository_impl.dart';
 import '../../features/bus/domain/repositories/bus_repository.dart';
@@ -52,16 +60,22 @@ import '../router/app_router.dart';
 /// - sources de données, repositories, cas d'usage : `registerLazySingleton` ;
 /// - blocs et cubits : `registerFactory` (une instance neuve par écran ou parcours) ;
 /// - `config.useFakeBackend` choisit la source simulée ou la source HTTP.
-Future<void> configureDependencies(AppConfig config) async {
+Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore}) async {
   sl
     ..registerSingleton<AppConfig>(config)
-    ..registerLazySingleton(AuthInterceptor.new)
+    ..registerLazySingleton(CurrentSession.new)
+    // Le jeton va dans le trousseau de l'appareil ; le faux backend n'a rien à protéger.
+    ..registerLazySingleton<SessionStore>(
+      () => sessionStore ?? (config.useFakeBackend ? InMemorySessionStore() : SecureSessionStore()),
+    )
+    ..registerLazySingleton(() => AuthInterceptor(sl()))
     ..registerLazySingleton(() => ApiClient(sl(), sl()))
     ..registerLazySingleton(() => FakeBackend(sl()))
-    ..registerLazySingleton(AppRouter.new);
+    ..registerLazySingleton(() => AppRouter(sl()));
 
   final fake = config.useFakeBackend;
 
+  _auth(fake);
   _home(fake);
   _mobility(fake);
   _delivery(fake);
@@ -70,6 +84,21 @@ Future<void> configureDependencies(AppConfig config) async {
   _wallet(fake);
   _account(fake);
   _activities(fake);
+}
+
+void _auth(bool fake) {
+  sl
+    ..registerLazySingleton<AuthRemoteDataSource>(() => fake ? AuthFakeDataSource(sl()) : AuthApiDataSource(sl()))
+    ..registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl(), sl()))
+    ..registerLazySingleton(() => SendOtp(sl()))
+    ..registerLazySingleton(() => VerifyOtp(sl()))
+    ..registerLazySingleton(() => LoginPassenger(sl()))
+    ..registerLazySingleton(() => RegisterPassenger(sl()))
+    ..registerLazySingleton(() => RestoreSession(sl()))
+    ..registerLazySingleton(() => SignOut(sl()))
+    // Session unique pour toute l'application (lue par le routeur) ; le parcours de connexion est créé à chaque visite.
+    ..registerLazySingleton(() => AuthCubit(current: sl(), restore: sl(), signOut: sl()))
+    ..registerFactory(() => SignInCubit(sendOtp: sl(), verifyOtp: sl(), login: sl(), register: sl()));
 }
 
 void _home(bool fake) {

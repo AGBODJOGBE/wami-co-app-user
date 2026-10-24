@@ -9,6 +9,8 @@ Future<Result<T>> guard<T>(Future<T> Function() call) async {
     return Ok(await call());
   } on NetworkException {
     return const Err(NetworkFailure());
+  } on UnauthorizedException catch (e) {
+    return Err(e.message == null ? const UnauthorizedFailure() : UnauthorizedFailure(e.message!));
   } on BusinessRuleException catch (e) {
     return Err(_mapBusinessRule(e));
   } on ServerException catch (e) {

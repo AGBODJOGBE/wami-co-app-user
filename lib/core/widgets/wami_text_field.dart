@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/wami_palette.dart';
 
@@ -16,6 +17,12 @@ class WamiTextField extends StatelessWidget {
     this.autofocus = false,
     this.label,
     this.initialValue,
+    this.obscureText = false,
+    this.maxLength,
+    this.inputFormatters,
+    this.onSubmitted,
+    this.textInputAction,
+    this.errorText,
   });
 
   final String hint;
@@ -28,6 +35,12 @@ class WamiTextField extends StatelessWidget {
   final bool autofocus;
   final String? label;
   final String? initialValue;
+  final bool obscureText;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final String? errorText;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +51,11 @@ class WamiTextField extends StatelessWidget {
       autofocus: autofocus,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      onFieldSubmitted: onSubmitted,
+      obscureText: obscureText,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      textInputAction: textInputAction,
       style: TextStyle(fontSize: 14, color: p.ink, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         hintText: hint,
@@ -47,6 +65,8 @@ class WamiTextField extends StatelessWidget {
         prefixText: prefixText,
         prefixStyle: TextStyle(color: p.ink, fontWeight: FontWeight.w600, fontSize: 14),
         suffixIcon: suffix,
+        errorText: errorText,
+        counterText: '',
       ),
     );
   }
