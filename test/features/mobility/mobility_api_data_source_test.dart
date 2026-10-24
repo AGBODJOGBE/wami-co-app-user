@@ -164,12 +164,13 @@ void main() {
 
     test('demande de course : coordonnées, portefeuille, paiement mixte', () async {
       server.on(
-          'POST /api/passenger/rides',
-          {
-            'success': true,
-            'data': {'rideId': 'r1'},
-          },
-          status: 201,);
+        'POST /api/passenger/rides',
+        {
+          'success': true,
+          'data': {'rideId': 'r1'},
+        },
+        status: 201,
+      );
 
       final id = await rides.requestRide(_from, _to, VehicleCategory.confort);
 
@@ -214,12 +215,13 @@ void main() {
 
     test('suivi : un jeton refusé n’est pas retenté', () {
       server.on(
-          'GET /api/passenger/rides/r1',
-          {
-            'success': false,
-            'error': {'code': 'SESSION_EXPIRED', 'message': 'Session expirée'},
-          },
-          status: 401,);
+        'GET /api/passenger/rides/r1',
+        {
+          'success': false,
+          'error': {'code': 'SESSION_EXPIRED', 'message': 'Session expirée'},
+        },
+        status: 401,
+      );
       expect(rides.watchRide('r1').toList(), throwsA(isA<UnauthorizedException>()));
     });
 

@@ -1,3 +1,4 @@
+import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/entities/app_settings.dart';
@@ -65,10 +66,29 @@ class AccountApiDataSource implements AccountRemoteDataSource {
 }
 
 class AccountFakeDataSource implements AccountRemoteDataSource {
-  AccountFakeDataSource(this._fake);
+  AccountFakeDataSource(this._fake, this._session);
   final FakeBackend _fake;
+  final CurrentSession _session;
 
-  UserProfile _me = const UserProfile(
+  /// Les informations d'identité viennent de la session ; le reste (niveau, lieux, contact d'urgence) est simulé.
+  late UserProfile _me = _initial();
+
+  UserProfile _initial() {
+    final s = _session.value;
+    const base = _sample;
+    if (s == null) return base;
+    return UserProfile(
+      fullName: s.fullName,
+      phone: s.phone,
+      email: s.email ?? '',
+      tier: base.tier,
+      rating: base.rating,
+      savedPlaces: base.savedPlaces,
+      emergencyContact: base.emergencyContact,
+    );
+  }
+
+  static const _sample = UserProfile(
     fullName: 'Gilexe AGBODJOGBE',
     phone: '+229 [00 00 00 00]',
     email: '[adresse e-mail]',

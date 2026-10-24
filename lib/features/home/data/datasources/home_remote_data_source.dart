@@ -1,3 +1,4 @@
+import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
 import '../../../../core/domain/service_type.dart';
 import '../../../../core/network/api_client.dart';
@@ -19,30 +20,31 @@ class HomeApiDataSource implements HomeRemoteDataSource {
 
 /// Données simulées pour développer sans backend.
 class HomeFakeDataSource implements HomeRemoteDataSource {
-  const HomeFakeDataSource(this._fake);
+  const HomeFakeDataSource(this._fake, this._session);
   final FakeBackend _fake;
+  final CurrentSession _session;
 
   @override
   Future<HomeFeed> fetchFeed() async {
     await _fake.latency();
-    return const HomeFeed(
-      firstName: 'Gilexe',
+    return HomeFeed(
+      firstName: _session.value?.firstName ?? 'Gilexe',
       promos: [
-        PromoBanner(
+        const PromoBanner(
           id: 'p1',
           title: '−20 % sur votre 1re course Confort',
           subtitle: 'Code de bienvenue [à valider]',
           ctaLabel: 'J’en profite',
           service: ServiceType.mobility,
         ),
-        PromoBanner(
+        const PromoBanner(
           id: 'p2',
           title: 'Cotonou → Parakou dès [prix]',
           subtitle: 'Comparez les compagnies en un geste',
           ctaLabel: 'Voir les bus',
           service: ServiceType.bus,
         ),
-        PromoBanner(
+        const PromoBanner(
           id: 'p3',
           title: 'Livraison express en moins d’1 h',
           subtitle: 'Partout en ville',
@@ -51,9 +53,9 @@ class HomeFakeDataSource implements HomeRemoteDataSource {
         ),
       ],
       quickDestinations: [
-        QuickDestination(id: 'q1', label: 'Maison', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.home),
-        QuickDestination(id: 'q2', label: 'Travail', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.work),
-        QuickDestination(id: 'q3', label: 'Aéroport', address: 'Cadjèhoun', kind: QuickDestinationKind.recent),
+        const QuickDestination(id: 'q1', label: 'Maison', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.home),
+        const QuickDestination(id: 'q2', label: 'Travail', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.work),
+        const QuickDestination(id: 'q3', label: 'Aéroport', address: 'Cadjèhoun', kind: QuickDestinationKind.recent),
       ],
     );
   }

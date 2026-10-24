@@ -13,31 +13,46 @@ Le code reprend le prototype validé (direction futuriste) et le design system W
 
 ## Démarrer
 
-Prérequis : Flutter **3.27 ou plus** (Dart 3.6+).
+Prérequis : Flutter **3.27 ou plus** (Dart 3.6+). Les dossiers `android/` et `ios/` sont déjà générés.
 
 ```bash
-# 1. Générer les dossiers natifs (android/, ios/…) sans toucher à lib/ ni test/
-flutter create --org bj.wami --project-name wami --platforms android,ios .
-
-# 2. Dépendances
 flutter pub get
 
-# 3. Lancer avec le faux backend (par défaut)
+# Faux backend (par défaut) : tout fonctionne sans serveur. Le code SMS est toujours 123456.
 flutter run
 
-# 4. Lancer sur une vraie API
-flutter run --dart-define=WAMI_FAKE_BACKEND=false --dart-define=WAMI_API_URL=https://api.wami.bj
+# Back wami-co (https://github.com/AGBODJOGBE/wami-co)
+flutter run --dart-define=WAMI_FAKE_BACKEND=false --dart-define=WAMI_API_URL=https://api.exemple.bj
 
-# Tests et analyse
 flutter analyze
 flutter test
 ```
 
-> ⚠️ Ce code n'a pas pu être compilé là où il a été écrit : aucun SDK Flutter n'y était disponible.
-> Il a été vérifié par analyse syntaxique et par contrôle des imports et des symboles.
-> **Lancez `flutter analyze` en premier** : quelques ajustements mineurs restent possibles.
+Autre réglage : `--dart-define=WAMI_GEOCODER_URL=…` (service de recherche d'adresses, voir plus bas).
 
 ---
+
+## Branchement sur le back wami-co
+
+Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste reste simulé.
+
+| Module | Routes utilisées | Notes |
+|---|---|---|
+| Connexion | `POST /api/passengers/send-otp`, `verify-otp`, `register`, `login` | Numéro → code SMS → mot de passe ou inscription. Le jeton (1 an, sans renouvellement) est rangé dans le trousseau de l'appareil ; un 401 renvoie vers la connexion. |
+| Portefeuille | `GET/POST /api/wallets/:walletId/{balance,transactions,recharge,transfer}`, `GET /api/payment/status/:id` | Recharge Mobile Money asynchrone suivie jusqu'à sa validation. Transfert par numéro de téléphone. |
+| Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
+
+**Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, livraison, bus, hébergement, compte, activités, paramètres.
+
+### Écarts connus avec le back
+
+- **Recherche d'adresses** : le back n'a pas de géocodage. L'app utilise Nominatim (OpenStreetMap), limité au Bénin. Le serveur public est réservé à un usage léger : en production, prévoir un service dédié et l'indiquer par `WAMI_GEOCODER_URL`.
+- **Règles d'attente** : le back ne publie le tarif à la minute ni avant ni pendant la course. L'app déduit le tarif de ce qui a déjà été facturé ; la franchise gratuite vient de la course.
+- **Délai d'arrivée du chauffeur** : absent de `GET /rides/:id`. L'écran affiche « Chauffeur en route » ; le temps restant de la course est estimé à partir de la durée prévue.
+- **Pourboire et code de sécurité** : le back ne les gère pas, ils ont été retirés de l'app.
+- **Paiement** : prélevé automatiquement à l'arrivée par le back ; l'écran final ne fait que recueillir la note.
+- **Idempotence** : aucune route d'écriture du back n'accepte de clé d'idempotence. L'app ignore les doubles appuis, mais un retry réseau après timeout peut encore dupliquer un paiement ou un transfert.
+- **Messages d'erreur** : le back répond en anglais ; l'app traduit les refus du portefeuille. Les autres s'affichent tels quels.
 
 ## Architecture : Clean Architecture par feature
 
@@ -104,7 +119,7 @@ lib/
   - un **Cubit** pour un formulaire en étapes.
   - L'état éphémère d'un seul écran (montant choisi, étoiles) reste dans un `StatefulWidget`.
 
-### Brancher la vraie API
+### Brancher une API
 
 Chaque feature a une interface `XRemoteDataSource` avec deux implémentations :
 - `XApiDataSource` : HTTP via `ApiClient` ;

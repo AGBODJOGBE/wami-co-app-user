@@ -78,14 +78,18 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
-  _home(fake);
+  // Branchés sur le back wami-co : authentification, mobilité, portefeuille.
+  // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
+  // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
+  const stillSimulated = true;
+  _home(stillSimulated);
   _mobility(fake);
-  _delivery(fake);
-  _bus(fake);
-  _lodging(fake);
+  _delivery(stillSimulated);
+  _bus(stillSimulated);
+  _lodging(stillSimulated);
   _wallet(fake);
-  _account(fake);
-  _activities(fake);
+  _account(stillSimulated);
+  _activities(stillSimulated);
 }
 
 void _auth(bool fake) {
@@ -105,7 +109,7 @@ void _auth(bool fake) {
 
 void _home(bool fake) {
   sl
-    ..registerLazySingleton<HomeRemoteDataSource>(() => fake ? HomeFakeDataSource(sl()) : HomeApiDataSource(sl()))
+    ..registerLazySingleton<HomeRemoteDataSource>(() => fake ? HomeFakeDataSource(sl(), sl()) : HomeApiDataSource(sl()))
     ..registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(sl()))
     ..registerLazySingleton(() => GetHomeFeed(sl()))
     ..registerFactory(() => HomeCubit(sl()));
@@ -199,7 +203,7 @@ void _wallet(bool fake) {
 void _account(bool fake) {
   sl
     ..registerLazySingleton<AccountRemoteDataSource>(
-      () => fake ? AccountFakeDataSource(sl()) : AccountApiDataSource(sl()),
+      () => fake ? AccountFakeDataSource(sl(), sl()) : AccountApiDataSource(sl()),
     )
     ..registerLazySingleton<SettingsLocalDataSource>(InMemorySettingsDataSource.new)
     ..registerLazySingleton<AccountRepository>(() => AccountRepositoryImpl(sl(), sl()))
