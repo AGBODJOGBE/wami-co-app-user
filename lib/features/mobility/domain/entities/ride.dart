@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'vehicle_offer.dart';
+import 'waiting_policy.dart';
 
 enum RideStatus {
   /// Recherche d'un chauffeur.
@@ -19,12 +20,18 @@ enum RideStatus {
   paused,
 
   completed,
-  cancelled;
+  cancelled,
+
+  /// Aucun chauffeur n'a accepté la course.
+  noDriver;
 
   /// Appeler / écrire au chauffeur n'est possible qu'avant le démarrage.
   bool get canContactDriver => this == driverEnRoute || this == driverArrived;
 
   bool get isOnTrip => this == inProgress || this == paused;
+
+  /// Plus rien à suivre : le flux de la course s'arrête.
+  bool get isFinal => this == completed || this == cancelled || this == noDriver;
 }
 
 class Driver extends Equatable {
@@ -58,6 +65,8 @@ class RideSnapshot extends Equatable {
     this.pausedSeconds = 0,
     this.waitingFee = 0,
     this.pauseFee = 0,
+    this.policy,
+    this.serverTotal,
   });
 
   final String id;
@@ -79,7 +88,13 @@ class RideSnapshot extends Equatable {
   final int waitingFee;
   final int pauseFee;
 
-  int get total => fare + waitingFee + pauseFee;
+  /// Règles d'attente telles que le serveur les applique à cette course, quand il les donne.
+  final WaitingPolicy? policy;
+
+  /// Montant définitif donné par le serveur à la fin de la course (réduction et approche comprises).
+  final int? serverTotal;
+
+  int get total => serverTotal ?? fare + waitingFee + pauseFee;
 
   RideSnapshot copyWith({
     RideStatus? status,
@@ -103,6 +118,8 @@ class RideSnapshot extends Equatable {
       pausedSeconds: pausedSeconds ?? this.pausedSeconds,
       waitingFee: waitingFee ?? this.waitingFee,
       pauseFee: pauseFee ?? this.pauseFee,
+      policy: policy,
+      serverTotal: serverTotal,
     );
   }
 
@@ -119,18 +136,19 @@ class RideSnapshot extends Equatable {
         fare,
         waitingFee,
         pauseFee,
+        policy,
+        serverTotal,
       ];
 }
 
-/// Note laissée en fin de course.
+/// Note laissée en fin de course. Le paiement est prélevé automatiquement à l'arrivée : pas de pourboire pour l'instant.
 class RideRating extends Equatable {
-  const RideRating({required this.rideId, required this.stars, this.tags = const {}, this.tip = 0});
+  const RideRating({required this.rideId, required this.stars, this.tags = const {}});
 
   final String rideId;
   final int stars;
   final Set<String> tags;
-  final int tip;
 
   @override
-  List<Object?> get props => [rideId, stars, tags, tip];
+  List<Object?> get props => [rideId, stars, tags];
 }

@@ -7,6 +7,14 @@ import '../entities/vehicle_offer.dart';
 import '../entities/waiting_policy.dart';
 import '../repositories/mobility_repository.dart';
 
+class GetCurrentPlace implements UseCase<Place, NoParams> {
+  const GetCurrentPlace(this._repo);
+  final MobilityRepository _repo;
+
+  @override
+  Future<Result<Place>> call(NoParams _) => _repo.currentPlace();
+}
+
 class SearchPlaces implements UseCase<List<Place>, String> {
   const SearchPlaces(this._repo);
   final MobilityRepository _repo;

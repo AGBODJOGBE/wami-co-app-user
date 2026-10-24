@@ -6,6 +6,7 @@ import '../../../../core/domain/service_type.dart';
 enum VehicleCategory {
   moto('Moto', 1, ServiceArt.moto, 'Le plus rapide'),
   tricycle('Tricycle', 3, ServiceArt.moto, 'Avec bagages'),
+  eco('Éco', 4, ServiceArt.auto, 'Le moins cher'),
   standard('Standard', 4, ServiceArt.auto, 'Économique'),
   confort('Confort', 4, ServiceArt.auto, 'Climatisé'),
   vip('VIP', 4, ServiceArt.auto, 'Haut de gamme'),
@@ -16,6 +17,16 @@ enum VehicleCategory {
   final int seats;
   final ServiceArt art;
   final String hint;
+
+  /// Nom du type de véhicule côté back (`MOTO`, `CONFORT`…).
+  String get apiName => name.toUpperCase();
+
+  static VehicleCategory? fromApi(String? value) {
+    for (final c in values) {
+      if (c.apiName == value) return c;
+    }
+    return null;
+  }
 }
 
 /// Prix proposé pour une gamme, sur un trajet donné.
@@ -29,6 +40,8 @@ class VehicleOffer extends Equatable {
 
   final VehicleCategory category;
   final int price;
+
+  /// Durée estimée du trajet (le back ne donne pas encore le délai d'arrivée du chauffeur à l'estimation).
   final int etaMinutes;
 
   /// Choix mis en avant par WAMI (meilleur rapport prix / délai).

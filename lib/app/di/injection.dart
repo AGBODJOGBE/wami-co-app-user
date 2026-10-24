@@ -2,6 +2,7 @@ import '../../core/auth/current_session.dart';
 import '../../core/auth/session_store.dart';
 import '../../core/config/app_config.dart';
 import '../../core/data/fake_backend.dart';
+import '../../core/location/location_service.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_interceptor.dart';
@@ -42,6 +43,7 @@ import '../../features/lodging/domain/repositories/lodging_repository.dart';
 import '../../features/lodging/domain/usecases/lodging_usecases.dart';
 import '../../features/lodging/presentation/cubit/lodging_cubit.dart';
 import '../../features/mobility/data/datasources/mobility_fake_data_source.dart';
+import '../../features/mobility/data/datasources/place_geocoder.dart';
 import '../../features/mobility/data/datasources/mobility_remote_data_source.dart';
 import '../../features/mobility/data/repositories/mobility_repository_impl.dart';
 import '../../features/mobility/domain/repositories/mobility_repository.dart';
@@ -111,10 +113,15 @@ void _home(bool fake) {
 
 void _mobility(bool fake) {
   sl
-    ..registerLazySingleton<MobilityRemoteDataSource>(
-      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl()),
+    ..registerLazySingleton<LocationService>(
+      () => fake ? const FixedLocationService() : const GeolocatorLocationService(),
     )
-    ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl()))
+    ..registerLazySingleton<PlaceGeocoder>(() => NominatimGeocoder(baseUrl: sl<AppConfig>().geocoderUrl))
+    ..registerLazySingleton<MobilityRemoteDataSource>(
+      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl(), sl(), sl()),
+    )
+    ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl(), sl()))
+    ..registerLazySingleton(() => GetCurrentPlace(sl()))
     ..registerLazySingleton(() => SearchPlaces(sl()))
     ..registerLazySingleton(() => EstimateRideOffers(sl()))
     ..registerLazySingleton(() => GetWaitingPolicy(sl()))
@@ -124,6 +131,7 @@ void _mobility(bool fake) {
     ..registerLazySingleton(() => RateRide(sl()))
     ..registerFactory(
       () => RideBloc(
+        getCurrentPlace: sl(),
         searchPlaces: sl(),
         estimateOffers: sl(),
         getWaitingPolicy: sl(),

@@ -18,12 +18,14 @@ class RideBloc extends Bloc<RideEvent, RideState> {
   RideBloc({
     required SearchPlaces searchPlaces,
     required EstimateRideOffers estimateOffers,
+    required GetCurrentPlace getCurrentPlace,
     required GetWaitingPolicy getWaitingPolicy,
     required RequestRide requestRide,
     required WatchRide watchRide,
     required CancelRide cancelRide,
     required RateRide rateRide,
-  })  : _searchPlaces = searchPlaces,
+  })  : _getCurrentPlace = getCurrentPlace,
+        _searchPlaces = searchPlaces,
         _estimateOffers = estimateOffers,
         _getWaitingPolicy = getWaitingPolicy,
         _requestRide = requestRide,
@@ -40,6 +42,7 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     on<RideRated>(_onRated);
   }
 
+  final GetCurrentPlace _getCurrentPlace;
   final SearchPlaces _searchPlaces;
   final EstimateRideOffers _estimateOffers;
   final GetWaitingPolicy _getWaitingPolicy;
@@ -48,17 +51,32 @@ class RideBloc extends Bloc<RideEvent, RideState> {
   final CancelRide _cancelRide;
   final RateRide _rateRide;
 
-  /// Position actuelle (géolocalisation à brancher — geolocator, à valider).
+  static const _typingPause = Duration(milliseconds: 350);
+
+  /// Départ en attendant la position du téléphone (sans coordonnées : pas de course possible).
   static const currentPosition = Place(id: 'me', name: 'Ma position', address: 'Position actuelle');
 
   Future<void> _onStarted(RideStarted e, Emitter<RideState> emit) async {
     final policy = await _getWaitingPolicy(const NoParams());
     emit(state.copyWith(policy: policy.valueOrNull ?? const WaitingPolicy()));
     if (e.initialQuery != null) add(RideQueryChanged(e.initialQuery!));
+    await _locate(emit);
+  }
+
+  /// Lit la position du téléphone ; en cas d'échec, l'erreur est montrée au choix de la destination.
+  Future<Failure?> _locate(Emitter<RideState> emit) async {
+    final here = await _getCurrentPlace(const NoParams());
+    return here.fold((f) => f, (place) {
+      emit(state.copyWith(origin: place));
+      return null;
+    });
   }
 
   Future<void> _onQueryChanged(RideQueryChanged e, Emitter<RideState> emit) async {
     emit(state.copyWith(query: e.query));
+    // Attente de la fin de la frappe : un appel par pause, pas un par lettre.
+    await Future<void>.delayed(_typingPause);
+    if (state.query != e.query) return;
     final result = await _searchPlaces(e.query);
     if (state.query != e.query) return; // une saisie plus récente a pris le relais
     emit(state.copyWith(suggestions: result.valueOrNull ?? const []));
@@ -66,6 +84,13 @@ class RideBloc extends Bloc<RideEvent, RideState> {
 
   Future<void> _onDestinationChosen(RideDestinationChosen e, Emitter<RideState> emit) async {
     emit(state.copyWith(destination: e.place, offersStatus: LoadStatus.loading, offers: const []));
+    if (state.origin.lat == null) {
+      final failure = await _locate(emit);
+      if (failure != null) {
+        emit(state.copyWith(offersStatus: LoadStatus.failure, failure: failure));
+        return;
+      }
+    }
     final result = await _estimateOffers(RouteParams(from: state.origin, to: e.place));
     result.fold(
       (f) => emit(state.copyWith(offersStatus: LoadStatus.failure, failure: f)),
@@ -94,7 +119,7 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     // Le flux de la course alimente l'état jusqu'à la fin ou l'annulation.
     await emit.forEach<RideSnapshot>(
       _watchRide(rideId),
-      onData: (snap) => state.copyWith(ride: snap),
+      onData: (snap) => state.copyWith(ride: snap, policy: snap.policy),
       onError: (_, __) => state.copyWith(failure: const NetworkFailure()),
     );
   }
@@ -109,7 +134,7 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     final ride = state.ride;
     if (ride == null) return;
     emit(state.copyWith(ratingStatus: LoadStatus.loading));
-    final result = await _rateRide(RideRating(rideId: ride.id, stars: e.stars, tags: e.tags, tip: e.tip));
+    final result = await _rateRide(RideRating(rideId: ride.id, stars: e.stars, tags: e.tags));
     emit(
       result.fold(
         (f) => state.copyWith(ratingStatus: LoadStatus.failure, failure: f),

@@ -48,11 +48,10 @@ final class RideCancelled extends RideEvent {
 }
 
 final class RideRated extends RideEvent {
-  const RideRated({required this.stars, required this.tags, required this.tip});
+  const RideRated({required this.stars, required this.tags});
   final int stars;
   final Set<String> tags;
-  final int tip;
 
   @override
-  List<Object?> get props => [stars, tags, tip];
+  List<Object?> get props => [stars, tags];
 }

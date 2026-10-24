@@ -33,7 +33,15 @@ class RideTrackingPage extends StatelessWidget {
           listener: (context, state) {
             final status = state.ride?.status;
             if (status == RideStatus.completed) context.pushReplacement(Routes.rideRate);
-            if (status == RideStatus.cancelled) context.go(Routes.home);
+            if (status == RideStatus.cancelled || status == RideStatus.noDriver) {
+              showWamiMessage(
+                context,
+                status == RideStatus.noDriver
+                    ? 'Aucun chauffeur disponible pour le moment. Réessayez dans quelques minutes.'
+                    : 'Course annulée.',
+              );
+              context.go(Routes.home);
+            }
           },
           builder: (context, state) {
             final ride = state.ride;
@@ -73,12 +81,13 @@ class RideTrackingPage extends StatelessWidget {
 
   String _headline(RideSnapshot r) => switch (r.status) {
         RideStatus.searching => 'Recherche d’un chauffeur…',
-        RideStatus.driverEnRoute => 'Chauffeur à ${r.etaMinutes} min',
+        RideStatus.driverEnRoute => r.etaMinutes > 0 ? 'Chauffeur à ${r.etaMinutes} min' : 'Chauffeur en route',
         RideStatus.driverArrived => 'Votre chauffeur est là',
-        RideStatus.inProgress => 'En route · arrivée dans ${r.etaMinutes} min',
+        RideStatus.inProgress => r.etaMinutes > 0 ? 'En route · arrivée dans ${r.etaMinutes} min' : 'En route',
         RideStatus.paused => 'Course en pause',
         RideStatus.completed => 'Vous êtes arrivé',
         RideStatus.cancelled => 'Course annulée',
+        RideStatus.noDriver => 'Aucun chauffeur disponible',
       };
 
   List<Widget> _panel(BuildContext context, RideState state, RideSnapshot ride) {
@@ -101,7 +110,7 @@ class RideTrackingPage extends StatelessWidget {
       case RideStatus.driverEnRoute:
       case RideStatus.driverArrived:
         return [
-          if (driver != null) DriverCard(driver: driver, trailing: const _CodeBadge()),
+          if (driver != null) DriverCard(driver: driver),
           if (ride.status == RideStatus.driverArrived)
             WaitingMeter(waitedSeconds: ride.waitedSeconds, fee: ride.waitingFee, policy: state.policy),
           if (ride.status.canContactDriver && driver != null)
@@ -179,6 +188,7 @@ class RideTrackingPage extends StatelessWidget {
 
       case RideStatus.completed:
       case RideStatus.cancelled:
+      case RideStatus.noDriver:
         return const [SizedBox(height: 120, child: WamiLoading())];
     }
   }
@@ -188,21 +198,5 @@ class RideTrackingPage extends StatelessWidget {
     if (r.waitingFee > 0) parts.add('attente ${Fmt.fcfa(r.waitingFee)}');
     if (r.pauseFee > 0) parts.add('pause ${Fmt.fcfa(r.pauseFee)}');
     return parts.join(' · ');
-  }
-}
-
-/// Code de sécurité à donner au chauffeur (à valider : génération côté serveur).
-class _CodeBadge extends StatelessWidget {
-  const _CodeBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text('CODE', style: Theme.of(context).textTheme.labelSmall),
-        const NumberText('0000', size: 16),
-      ],
-    );
   }
 }

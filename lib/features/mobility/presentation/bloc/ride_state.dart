@@ -37,6 +37,7 @@ class RideState extends Equatable {
   }
 
   RideState copyWith({
+    Place? origin,
     String? query,
     List<Place>? suggestions,
     Place? destination,
@@ -50,7 +51,7 @@ class RideState extends Equatable {
     Failure? failure,
   }) {
     return RideState(
-      origin: origin,
+      origin: origin ?? this.origin,
       query: query ?? this.query,
       suggestions: suggestions ?? this.suggestions,
       destination: destination ?? this.destination,

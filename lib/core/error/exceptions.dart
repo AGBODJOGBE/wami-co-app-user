@@ -29,3 +29,9 @@ class UnauthorizedException implements Exception {
   const UnauthorizedException([this.message]);
   final String? message;
 }
+
+/// Position du téléphone indisponible (service coupé, autorisation refusée…).
+class LocationUnavailableException implements Exception {
+  const LocationUnavailableException(this.message);
+  final String message;
+}

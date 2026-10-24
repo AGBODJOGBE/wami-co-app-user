@@ -25,6 +25,7 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
   static const _grid = {
     VehicleCategory.moto: (800, 3),
     VehicleCategory.tricycle: (1200, 6),
+    VehicleCategory.eco: (1500, 5),
     VehicleCategory.standard: (2000, 5),
     VehicleCategory.confort: (2800, 7),
     VehicleCategory.vip: (5000, 9),
@@ -114,6 +115,7 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
           }
         case RideStatus.completed:
         case RideStatus.cancelled:
+        case RideStatus.noDriver:
           return;
       }
       yield snap;

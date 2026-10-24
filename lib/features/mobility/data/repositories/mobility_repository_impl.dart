@@ -1,4 +1,5 @@
 import '../../../../core/data/repository_guard.dart';
+import '../../../../core/location/location_service.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/entities/place.dart';
 import '../../domain/entities/ride.dart';
@@ -8,8 +9,15 @@ import '../../domain/repositories/mobility_repository.dart';
 import '../datasources/mobility_remote_data_source.dart';
 
 class MobilityRepositoryImpl implements MobilityRepository {
-  const MobilityRepositoryImpl(this._remote);
+  const MobilityRepositoryImpl(this._remote, this._location);
   final MobilityRemoteDataSource _remote;
+  final LocationService _location;
+
+  @override
+  Future<Result<Place>> currentPlace() => guard(() async {
+        final p = await _location.current();
+        return Place(id: 'me', name: 'Ma position', address: 'Position actuelle', lat: p.lat, lng: p.lng);
+      });
 
   @override
   Future<Result<List<Place>>> searchPlaces(String query) => guard(() => _remote.searchPlaces(query));

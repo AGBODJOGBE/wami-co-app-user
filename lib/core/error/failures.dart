@@ -38,3 +38,8 @@ final class UnexpectedFailure extends Failure {
 final class UnauthorizedFailure extends Failure {
   const UnauthorizedFailure([super.message = 'Session expirée. Reconnectez-vous.']);
 }
+
+/// Position du téléphone indisponible.
+final class LocationFailure extends Failure {
+  const LocationFailure(super.message);
+}

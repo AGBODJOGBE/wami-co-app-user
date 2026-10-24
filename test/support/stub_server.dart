@@ -19,6 +19,9 @@ class StubServer implements HttpClientAdapter {
     _routes.putIfAbsent(route, () => []).add((status, body));
   }
 
+  /// Simule une coupure réseau sur cette route (une fois, puis les réponses suivantes reprennent).
+  void cutOnce(String route) => on(route, null, status: -1);
+
   RequestOptions? last(String route) {
     for (final r in requests.reversed) {
       if ('${r.method} ${r.path}' == route) return r;
@@ -49,6 +52,9 @@ class StubServer implements HttpClientAdapter {
       return ResponseBody.fromString(jsonEncode({'success': false, 'error': 'route inconnue'}), 404, headers: _json);
     }
     final (status, body) = queue.length > 1 ? queue.removeAt(0) : queue.first;
+    if (status == -1) {
+      throw DioException(requestOptions: options, type: DioExceptionType.connectionError);
+    }
     return ResponseBody.fromString(jsonEncode(body), status, headers: _json);
   }
 

@@ -5,6 +5,9 @@ import '../entities/vehicle_offer.dart';
 import '../entities/waiting_policy.dart';
 
 abstract interface class MobilityRepository {
+  /// Position actuelle du téléphone, utilisée comme point de départ.
+  Future<Result<Place>> currentPlace();
+
   Future<Result<List<Place>>> searchPlaces(String query);
 
   Future<Result<List<VehicleOffer>>> estimateOffers({required Place from, required Place to});

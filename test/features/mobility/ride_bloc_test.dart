@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/config/app_config.dart';
 import 'package:wami/core/data/fake_backend.dart';
+import 'package:wami/core/location/location_service.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_fake_data_source.dart';
 import 'package:wami/features/mobility/data/repositories/mobility_repository_impl.dart';
 import 'package:wami/features/mobility/domain/entities/place.dart';
@@ -16,8 +17,9 @@ void main() {
   setUp(() {
     const config = AppConfig(apiBaseUrl: '', useFakeBackend: true, fakeLatency: Duration.zero);
     final ds = MobilityFakeDataSource(const FakeBackend(config), tick: const Duration(milliseconds: 1));
-    final repo = MobilityRepositoryImpl(ds);
+    final repo = MobilityRepositoryImpl(ds, const FixedLocationService());
     bloc = RideBloc(
+      getCurrentPlace: GetCurrentPlace(repo),
       searchPlaces: SearchPlaces(repo),
       estimateOffers: EstimateRideOffers(repo),
       getWaitingPolicy: GetWaitingPolicy(repo),

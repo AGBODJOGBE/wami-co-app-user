@@ -41,8 +41,8 @@ class ApiClient {
     return _send(() => _dio.patch<Object?>(path, data: body));
   }
 
-  Future<Map<String, dynamic>> delete(String path) {
-    return _send(() => _dio.delete<Object?>(path));
+  Future<Map<String, dynamic>> delete(String path, {Object? body}) {
+    return _send(() => _dio.delete<Object?>(path, data: body));
   }
 
   Future<Map<String, dynamic>> _send(Future<Response<Object?>> Function() request) async {
