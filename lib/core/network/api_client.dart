@@ -12,15 +12,16 @@ import 'auth_interceptor.dart';
 /// - rend le corps entier quand il n'y a pas de `data` (ex. `verify-otp`) ;
 /// - ne lève que des exceptions de `core/error`.
 class ApiClient {
-  ApiClient(AppConfig config, AuthInterceptor authInterceptor)
-      : _dio = Dio(
-          BaseOptions(
-            baseUrl: config.apiBaseUrl,
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 20),
-            headers: {'Accept': 'application/json', 'Accept-Language': 'fr'},
-          ),
-        )..interceptors.add(authInterceptor);
+  /// [dio] sert aux tests, pour brancher un faux serveur.
+  ApiClient(AppConfig config, AuthInterceptor authInterceptor, {Dio? dio})
+      : _dio = (dio ?? Dio(_options(config)))..interceptors.add(authInterceptor);
+
+  static BaseOptions _options(AppConfig config) => BaseOptions(
+        baseUrl: config.apiBaseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 20),
+        headers: {'Accept': 'application/json', 'Accept-Language': 'fr'},
+      );
 
   final Dio _dio;
 

@@ -19,26 +19,12 @@ class GetWalletOverview implements UseCase<WalletOverview, NoParams> {
   Future<Result<WalletOverview>> call(NoParams _) => _repo.getOverview();
 }
 
-class GetTopUpSources implements UseCase<List<TopUpSource>, NoParams> {
-  const GetTopUpSources(this._repo);
-  final WalletRepository _repo;
-
-  @override
-  Future<Result<List<TopUpSource>>> call(NoParams _) => _repo.getTopUpSources();
-}
-
-class GetBeneficiaries implements UseCase<List<Beneficiary>, NoParams> {
-  const GetBeneficiaries(this._repo);
-  final WalletRepository _repo;
-
-  @override
-  Future<Result<List<Beneficiary>>> call(NoParams _) => _repo.getBeneficiaries();
-}
-
 class TopUpParams {
-  const TopUpParams({required this.amount, required this.sourceId});
+  const TopUpParams({required this.amount, required this.phone});
   final int amount;
-  final String sourceId;
+
+  /// Numéro Mobile Money à débiter, au format international.
+  final String phone;
 }
 
 class TopUpWallet implements UseCase<WalletOverview, TopUpParams> {
@@ -53,13 +39,15 @@ class TopUpWallet implements UseCase<WalletOverview, TopUpParams> {
     if (p.amount > WalletLimits.maxTopUp) {
       return const Err(ValidationFailure('Montant maximum dépassé.'));
     }
-    return _repo.topUp(amount: p.amount, sourceId: p.sourceId);
+    return _repo.topUp(amount: p.amount, phone: p.phone);
   }
 }
 
 class TransferParams {
-  const TransferParams({required this.beneficiaryId, required this.amount, required this.currentBalance, this.note});
-  final String beneficiaryId;
+  const TransferParams({required this.recipientPhone, required this.amount, required this.currentBalance, this.note});
+
+  /// Numéro du destinataire, au format international.
+  final String recipientPhone;
   final int amount;
   final int currentBalance;
   final String? note;
@@ -76,6 +64,6 @@ class TransferMoney implements UseCase<WalletOverview, TransferParams> {
       return const Err(ValidationFailure('Montant minimum : ${WalletLimits.minTransfer} F.'));
     }
     if (p.amount > p.currentBalance) return const Err(InsufficientFundsFailure());
-    return _repo.transfer(beneficiaryId: p.beneficiaryId, amount: p.amount, note: p.note);
+    return _repo.transfer(recipientPhone: p.recipientPhone, amount: p.amount, note: p.note);
   }
 }

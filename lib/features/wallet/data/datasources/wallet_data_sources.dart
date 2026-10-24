@@ -1,3 +1,4 @@
+import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/network/api_client.dart';
@@ -5,70 +6,147 @@ import '../../domain/entities/wallet.dart';
 
 abstract interface class WalletRemoteDataSource {
   Future<WalletOverview> overview();
-  Future<List<TopUpSource>> sources();
-  Future<List<Beneficiary>> beneficiaries();
-  Future<WalletOverview> topUp(int amount, String sourceId);
-  Future<WalletOverview> transfer(String beneficiaryId, int amount, String? note);
+  Future<WalletOverview> topUp(int amount, String phone);
+  Future<WalletOverview> transfer(String recipientPhone, int amount, String? note);
 }
 
-WalletOverview _overview(Map<String, dynamic> j) {
-  final w = j['wallet'] as Map<String, dynamic>;
-  return WalletOverview(
-    wallet: Wallet(balance: w['balance'] as int, points: w['points'] as int? ?? 0, holder: w['holder'] as String),
-    transactions: (j['transactions'] as List<dynamic>).cast<Map<String, dynamic>>().map((t) {
-      return WalletTransaction(
-        id: t['id'] as String,
-        label: t['label'] as String,
-        date: DateTime.parse(t['date'] as String),
-        amount: t['amount'] as int,
-        kind: TransactionKind.values.byName(t['kind'] as String),
-      );
-    }).toList(),
-  );
-}
-
-/// Endpoints à valider ; paiement réel via l'agrégateur retenu (FedaPay ?) — à valider.
+/// Routes `/api/wallets/:walletId/*` et `/api/payment/status/*` du back wami-co.
+///
+/// - Le solde dépensable est `totalBalance` (bonus et parrainage compris, gains d'affilié exclus).
+/// - La recharge est asynchrone : le serveur renvoie 202 puis l'opérateur demande la confirmation
+///   au client ; on suit l'état du paiement jusqu'à son terme.
 class WalletApiDataSource implements WalletRemoteDataSource {
-  const WalletApiDataSource(this._api);
+  WalletApiDataSource(
+    this._api,
+    this._session, {
+    this.pollEvery = const Duration(seconds: 3),
+    this.pollFor = const Duration(minutes: 2),
+  });
+
   final ApiClient _api;
+  final CurrentSession _session;
+  final Duration pollEvery;
+  final Duration pollFor;
 
-  List<Map<String, dynamic>> _items(Map<String, dynamic> j) =>
-      (j['items'] as List<dynamic>).cast<Map<String, dynamic>>();
-
-  @override
-  Future<WalletOverview> overview() async => _overview(await _api.get('/v1/wallet'));
-
-  @override
-  Future<List<TopUpSource>> sources() async => _items(await _api.get('/v1/wallet/sources'))
-      .map(
-        (s) => TopUpSource(
-          id: s['id'] as String,
-          kind: TopUpKind.values.byName(s['kind'] as String),
-          label: s['label'] as String,
-          masked: s['masked'] as String,
-        ),
-      )
-      .toList();
+  String get _base => '/api/wallets/${_session.walletId}';
 
   @override
-  Future<List<Beneficiary>> beneficiaries() async => _items(await _api.get('/v1/wallet/beneficiaries'))
-      .map((b) => Beneficiary(id: b['id'] as String, name: b['name'] as String, phone: b['phone'] as String))
-      .toList();
+  Future<WalletOverview> overview() async {
+    final results = await Future.wait([
+      _api.get('$_base/balance'),
+      _api.get('$_base/transactions', query: {'limit': 30}),
+    ]);
+    return WalletOverview(
+      wallet: Wallet(
+        balance: (results[0]['totalBalance'] as num).toInt(),
+        // Pas de programme de points côté back pour l'instant.
+        points: 0,
+        holder: _session.value?.fullName ?? '',
+      ),
+      transactions: (results[1]['transactions'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>()
+          .where((t) => t['status'] == 'COMPLETED')
+          .map(_transaction)
+          .toList(),
+    );
+  }
 
   @override
-  Future<WalletOverview> topUp(int amount, String sourceId) async =>
-      _overview(await _api.post('/v1/wallet/top-ups', body: {'amount': amount, 'source_id': sourceId}));
+  Future<WalletOverview> topUp(int amount, String phone) async {
+    final started = await _api.post(
+      '$_base/recharge',
+      body: {'amount': amount, 'phone': phone, 'description': 'Recharge WAMI'},
+    );
+    if (started['status'] == 'FAILED') throw const BusinessRuleException('payment_failed', 'Le paiement a échoué.');
+
+    await _waitForPayment(started['paymentIntentId'] as String);
+    return overview();
+  }
+
+  Future<void> _waitForPayment(String intentId) async {
+    final deadline = DateTime.now().add(pollFor);
+    while (DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(pollEvery);
+      final status = await _api.get('/api/payment/status/$intentId');
+      switch (status['status']) {
+        case 'COMPLETED':
+          return;
+        case 'FAILED' || 'EXPIRED':
+          throw const BusinessRuleException(
+            'payment_failed',
+            'Le paiement n’a pas abouti. Vérifiez votre solde Mobile Money et réessayez.',
+          );
+      }
+    }
+    throw const BusinessRuleException(
+      'payment_pending',
+      'Paiement en attente de confirmation. Votre solde sera mis à jour dès qu’il est validé.',
+    );
+  }
 
   @override
-  Future<WalletOverview> transfer(String beneficiaryId, int amount, String? note) async => _overview(
-        await _api.post('/v1/wallet/transfers', body: {'to': beneficiaryId, 'amount': amount, 'note': note}),
+  Future<WalletOverview> transfer(String recipientPhone, int amount, String? note) async {
+    try {
+      await _api.post(
+        '$_base/transfer',
+        body: {
+          'recipientPhone': recipientPhone,
+          'amount': amount,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        },
       );
+    } on BusinessRuleException catch (e) {
+      throw _frenchTransferError(e);
+    }
+    return overview();
+  }
+
+  /// Le back répond en anglais : on traduit les refus que l'utilisateur peut rencontrer.
+  BusinessRuleException _frenchTransferError(BusinessRuleException e) {
+    final m = (e.message ?? '').toLowerCase();
+    if (m.contains('insufficient balance')) return const BusinessRuleException('insufficient_funds');
+    if (m.contains('no user found') || m.contains('not found')) {
+      return const BusinessRuleException('rejected', 'Aucun compte WAMI ne correspond à ce numéro.');
+    }
+    if (m.contains('yourself')) {
+      return const BusinessRuleException('rejected', 'Vous ne pouvez pas vous envoyer de l’argent à vous-même.');
+    }
+    if (m.contains('only transfer money to other passengers')) {
+      return const BusinessRuleException('rejected', 'Vous pouvez envoyer de l’argent à un autre passager WAMI.');
+    }
+    if (m.contains('disabled')) {
+      return const BusinessRuleException('rejected', 'Les transferts sont momentanément indisponibles.');
+    }
+    return e;
+  }
+
+  WalletTransaction _transaction(Map<String, dynamic> t) {
+    final amount = (t['amount'] as num).toInt();
+    return WalletTransaction(
+      id: t['id'] as String,
+      label: t['description'] as String? ?? '',
+      date: DateTime.parse(t['createdAt'] as String).toLocal(),
+      amount: t['direction'] == 'DEBIT' ? -amount : amount,
+      kind: _kind(t['type'] as String? ?? '', t['direction'] as String? ?? ''),
+    );
+  }
+
+  TransactionKind _kind(String type, String direction) {
+    if (type.startsWith('RIDE') || type.startsWith('SCHEDULED_RIDE') || type.startsWith('CANCELLATION')) {
+      return TransactionKind.ride;
+    }
+    if (type.startsWith('DELIVERY') || type.startsWith('SUBSCRIPTION')) return TransactionKind.delivery;
+    if (type == 'RECHARGE') return TransactionKind.topUp;
+    // Transferts entre passagers : le back ne leur donne pas de type dédié, seule la direction les distingue.
+    return direction == 'DEBIT' ? TransactionKind.transferOut : TransactionKind.transferIn;
+  }
 }
 
 /// Portefeuille simulé, avec un vrai solde en mémoire.
 class WalletFakeDataSource implements WalletRemoteDataSource {
-  WalletFakeDataSource(this._fake);
+  WalletFakeDataSource(this._fake, this._session);
   final FakeBackend _fake;
+  final CurrentSession _session;
 
   int _balance = 25000;
   int _seq = 0;
@@ -96,15 +174,8 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
     ),
   ];
 
-  static const _beneficiaries = [
-    Beneficiary(id: 'b1', name: '[Contact A]', phone: '+229 [00 00 00 00]'),
-    Beneficiary(id: 'b2', name: '[Contact B]', phone: '+229 [00 00 00 00]'),
-    Beneficiary(id: 'b3', name: '[Contact C]', phone: '+229 [00 00 00 00]'),
-    Beneficiary(id: 'b4', name: '[Contact D]', phone: '+229 [00 00 00 00]'),
-  ];
-
   WalletOverview _snapshot() => WalletOverview(
-        wallet: Wallet(balance: _balance, points: 320, holder: '[Nom du titulaire]'),
+        wallet: Wallet(balance: _balance, points: 320, holder: _session.value?.fullName ?? 'Gilexe AGBODJOGBE'),
         transactions: List.unmodifiable(_txs),
       );
 
@@ -115,30 +186,14 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
   }
 
   @override
-  Future<List<TopUpSource>> sources() async {
-    await _fake.latency(0.4);
-    return const [
-      TopUpSource(id: 's1', kind: TopUpKind.mobileMoney, label: '[Opérateur A]', masked: '•• 12'),
-      TopUpSource(id: 's2', kind: TopUpKind.mobileMoney, label: '[Opérateur B]', masked: '•• 47'),
-      TopUpSource(id: 's3', kind: TopUpKind.card, label: 'Visa', masked: '•• 3021'),
-    ];
-  }
-
-  @override
-  Future<List<Beneficiary>> beneficiaries() async {
-    await _fake.latency(0.4);
-    return _beneficiaries;
-  }
-
-  @override
-  Future<WalletOverview> topUp(int amount, String sourceId) async {
+  Future<WalletOverview> topUp(int amount, String phone) async {
     await _fake.latency(2);
     _balance += amount;
     _txs.insert(
       0,
       WalletTransaction(
         id: 'n${_seq++}',
-        label: 'Recharge',
+        label: 'Recharge Mobile Money',
         date: DateTime.now(),
         amount: amount,
         kind: TransactionKind.topUp,
@@ -148,16 +203,15 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
   }
 
   @override
-  Future<WalletOverview> transfer(String beneficiaryId, int amount, String? note) async {
+  Future<WalletOverview> transfer(String recipientPhone, int amount, String? note) async {
     await _fake.latency(1.5);
     if (amount > _balance) throw const BusinessRuleException('insufficient_funds');
-    final who = _beneficiaries.firstWhere((b) => b.id == beneficiaryId);
     _balance -= amount;
     _txs.insert(
       0,
       WalletTransaction(
         id: 'n${_seq++}',
-        label: 'Transfert à ${who.name}',
+        label: 'Transfert à $recipientPhone',
         date: DateTime.now(),
         amount: -amount,
         kind: TransactionKind.transferOut,

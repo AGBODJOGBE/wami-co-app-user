@@ -12,16 +12,10 @@ class WalletRepositoryImpl implements WalletRepository {
   Future<Result<WalletOverview>> getOverview() => guard(_remote.overview);
 
   @override
-  Future<Result<List<TopUpSource>>> getTopUpSources() => guard(_remote.sources);
+  Future<Result<WalletOverview>> topUp({required int amount, required String phone}) =>
+      guard(() => _remote.topUp(amount, phone));
 
   @override
-  Future<Result<List<Beneficiary>>> getBeneficiaries() => guard(_remote.beneficiaries);
-
-  @override
-  Future<Result<WalletOverview>> topUp({required int amount, required String sourceId}) =>
-      guard(() => _remote.topUp(amount, sourceId));
-
-  @override
-  Future<Result<WalletOverview>> transfer({required String beneficiaryId, required int amount, String? note}) =>
-      guard(() => _remote.transfer(beneficiaryId, amount, note));
+  Future<Result<WalletOverview>> transfer({required String recipientPhone, required int amount, String? note}) =>
+      guard(() => _remote.transfer(recipientPhone, amount, note));
 }

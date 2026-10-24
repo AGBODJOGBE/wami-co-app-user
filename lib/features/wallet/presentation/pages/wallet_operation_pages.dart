@@ -2,18 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/current_session.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/wami_colors.dart';
 import '../../../../core/theme/wami_typography.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/load_status.dart';
+import '../../../../core/utils/phone.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/wami_basics.dart';
 import '../../../../core/widgets/wami_buttons.dart';
 import '../../../../core/widgets/wami_scaffold.dart';
 import '../../../../core/widgets/wami_selectors.dart';
 import '../../../../core/widgets/wami_text_field.dart';
-import '../../domain/entities/wallet.dart';
 import '../bloc/wallet_bloc.dart';
 
 const _topUpAmounts = [2000, 5000, 10000, 20000];
@@ -52,7 +54,7 @@ Widget _amountChips(List<int> values, int current, ValueChanged<int> onPick) => 
       ],
     );
 
-/// Recharge depuis Mobile Money ou carte.
+/// Recharge par Mobile Money : le client confirme le paiement sur son téléphone.
 class TopUpPage extends StatefulWidget {
   const TopUpPage({super.key});
 
@@ -62,12 +64,20 @@ class TopUpPage extends StatefulWidget {
 
 class _TopUpPageState extends State<TopUpPage> {
   int _amount = 5000;
-  String? _sourceId;
+  late final TextEditingController _phone;
 
   @override
   void initState() {
     super.initState();
-    context.read<WalletBloc>().add(const WalletFormDataRequested());
+    // Par défaut, le numéro du compte.
+    final own = sl<CurrentSession>().value?.phone;
+    _phone = TextEditingController(text: own == null ? '' : BeninPhone.display(own));
+  }
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    super.dispose();
   }
 
   @override
@@ -79,31 +89,33 @@ class _TopUpPageState extends State<TopUpPage> {
         if (state.operationStatus == LoadStatus.failure) showWamiMessage(context, state.failure!.message);
       },
       builder: (context, state) {
-        final sourceId = _sourceId ?? (state.sources.isEmpty ? null : state.sources.first.id);
+        final loading = state.operationStatus == LoadStatus.loading;
         return WamiScreen(
           title: 'Recharger',
           body: Gap(
             children: [
               _AmountDisplay(amount: _amount, caption: 'Nouveau solde : ${Fmt.fcfa(state.balance + _amount)}'),
               _amountChips(_topUpAmounts, _amount, (v) => setState(() => _amount = v)),
-              const SectionLabel('Depuis'),
-              if (state.sources.isEmpty) const SizedBox(height: 100, child: WamiLoading()),
-              for (final s in state.sources)
-                WamiOptionTile(
-                  title: s.kind == TopUpKind.card ? 'Carte bancaire' : 'Mobile Money',
-                  subtitle: '${s.label} · ${s.masked}',
-                  selected: s.id == sourceId,
-                  onTap: () => setState(() => _sourceId = s.id),
-                  leading:
-                      IconBadge(s.kind == TopUpKind.card ? Icons.credit_card_rounded : Icons.phone_android_rounded),
-                ),
+              const SectionLabel('Numéro Mobile Money'),
+              WamiTextField(
+                hint: '01 97 12 34 56',
+                icon: Icons.phone_android_rounded,
+                prefixText: '${BeninPhone.countryCode} ',
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                onChanged: (_) => setState(() {}),
+              ),
               Row(
                 children: [
-                  const Icon(Icons.lock_outline_rounded, size: 14),
+                  Icon(loading ? Icons.hourglass_top_rounded : Icons.lock_outline_rounded, size: 14),
                   const SizedBox(width: 6),
-                  Text(
-                    'Frais de recharge : [à valider]',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                  Expanded(
+                    child: Text(
+                      loading
+                          ? 'Confirmez le paiement sur votre téléphone. Cela peut prendre une minute.'
+                          : 'Une demande de confirmation sera envoyée à ce numéro. Frais de recharge : [à valider]',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                    ),
                   ),
                 ],
               ),
@@ -111,10 +123,12 @@ class _TopUpPageState extends State<TopUpPage> {
           ),
           bottom: WamiPrimaryButton(
             label: 'Recharger · ${Fmt.fcfa(_amount)}',
-            loading: state.operationStatus == LoadStatus.loading,
-            onPressed: sourceId == null
-                ? null
-                : () => context.read<WalletBloc>().add(WalletTopUpRequested(amount: _amount, sourceId: sourceId)),
+            loading: loading,
+            onPressed: BeninPhone.isValid(_phone.text)
+                ? () => context.read<WalletBloc>().add(
+                      WalletTopUpRequested(amount: _amount, phone: BeninPhone.toInternational(_phone.text)!),
+                    )
+                : null,
           ),
         );
       },
@@ -124,8 +138,10 @@ class _TopUpPageState extends State<TopUpPage> {
 
 /// Brouillon de transfert transmis à l'écran de vérification.
 class TransferDraft {
-  const TransferDraft({required this.beneficiary, required this.amount, this.note});
-  final Beneficiary beneficiary;
+  const TransferDraft({required this.recipientPhone, required this.amount, this.note});
+
+  /// Numéro du destinataire, au format international.
+  final String recipientPhone;
   final int amount;
   final String? note;
 }
@@ -139,17 +155,12 @@ class TransferPage extends StatefulWidget {
 
 class _TransferPageState extends State<TransferPage> {
   int _amount = 2000;
-  String? _beneficiaryId;
+  final _phone = TextEditingController();
   final _note = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    context.read<WalletBloc>().add(const WalletFormDataRequested());
-  }
-
-  @override
   void dispose() {
+    _phone.dispose();
     _note.dispose();
     super.dispose();
   }
@@ -157,35 +168,22 @@ class _TransferPageState extends State<TransferPage> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<WalletBloc>().state;
-    final people = state.beneficiaries;
-    final selected = people.where((b) => b.id == (_beneficiaryId ?? people.firstOrNull?.id)).firstOrNull;
+    final recipient = BeninPhone.toInternational(_phone.text);
     final enough = _amount <= state.balance;
     return WamiScreen(
       title: 'Transférer',
       body: Gap(
         children: [
           const SectionLabel('À qui ?'),
-          SizedBox(
-            height: 84,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _Person(
-                  label: 'Nouveau',
-                  initials: '+',
-                  selected: false,
-                  onTap: () => showWamiMessage(context, 'Ajout d’un contact : à brancher'),
-                ),
-                for (final b in people)
-                  _Person(
-                    label: b.name,
-                    initials: Fmt.initials(b.name.replaceAll(RegExp(r'[\[\]]'), '')),
-                    selected: b.id == selected?.id,
-                    onTap: () => setState(() => _beneficiaryId = b.id),
-                  ),
-              ],
-            ),
+          WamiTextField(
+            hint: 'Numéro du destinataire',
+            icon: Icons.person_search_rounded,
+            prefixText: '${BeninPhone.countryCode} ',
+            controller: _phone,
+            keyboardType: TextInputType.phone,
+            onChanged: (_) => setState(() {}),
           ),
+          Text('Le destinataire doit avoir un compte WAMI.', style: Theme.of(context).textTheme.bodySmall),
           _AmountDisplay(amount: _amount, caption: 'Solde après : ${Fmt.fcfa(state.balance - _amount)}'),
           _amountChips(_transferAmounts, _amount, (v) => setState(() => _amount = v)),
           WamiTextField(hint: 'Motif (facultatif)', controller: _note),
@@ -193,66 +191,14 @@ class _TransferPageState extends State<TransferPage> {
       ),
       bottom: WamiPrimaryButton(
         label: enough ? 'Continuer' : 'Solde insuffisant — rechargez',
-        onPressed: selected == null
+        onPressed: recipient == null
             ? null
             : () => enough
                 ? context.push(
                     Routes.walletTransferReview,
-                    extra: TransferDraft(beneficiary: selected, amount: _amount, note: _note.text),
+                    extra: TransferDraft(recipientPhone: recipient, amount: _amount, note: _note.text),
                   )
                 : context.pushReplacement(Routes.walletTopUp),
-      ),
-    );
-  }
-}
-
-class _Person extends StatelessWidget {
-  const _Person({required this.label, required this.initials, required this.selected, required this.onTap});
-  final String label;
-  final String initials;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 70,
-          child: Column(
-            children: [
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 150),
-                opacity: selected ? 1 : 0.75,
-                child: Container(
-                  width: 52,
-                  height: 52,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(colors: [WamiColors.nuitLight, WamiColors.nuit]),
-                    boxShadow: selected
-                        ? [
-                            const BoxShadow(color: WamiColors.night, spreadRadius: 2),
-                            const BoxShadow(color: WamiColors.orangeLight, spreadRadius: 4),
-                            BoxShadow(color: WamiColors.orange.withValues(alpha: 0.6), blurRadius: 18),
-                          ]
-                        : null,
-                  ),
-                  child: Text(
-                    initials,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -272,15 +218,14 @@ class TransferReviewPage extends StatelessWidget {
         if (state.operationStatus == LoadStatus.failure) showWamiMessage(context, state.failure!.message);
       },
       builder: (context, state) {
-        final b = draft.beneficiary;
         return WamiScreen(
           title: 'Vérifier',
           body: Gap(
             children: [
               const SizedBox(height: 8),
-              Center(child: WamiAvatar(initials: Fmt.initials(b.name.replaceAll(RegExp(r'[\[\]]'), '')), size: 72)),
-              Center(child: Text(b.name, style: t.titleMedium)),
-              Center(child: Text('${b.phone} · Compte WAMI', style: t.bodySmall)),
+              const Center(child: WamiAvatar(initials: '→', size: 72)),
+              Center(child: Text(BeninPhone.display(draft.recipientPhone), style: t.titleMedium)),
+              Center(child: Text('${BeninPhone.countryCode} · Compte WAMI', style: t.bodySmall)),
               GlassCard(
                 child: Column(
                   children: [
@@ -312,7 +257,7 @@ class TransferReviewPage extends StatelessWidget {
             label: 'Envoyer ${Fmt.fcfa(draft.amount)}',
             loading: state.operationStatus == LoadStatus.loading,
             onPressed: () => context.read<WalletBloc>().add(
-                  WalletTransferRequested(beneficiary: b, amount: draft.amount, note: draft.note),
+                  WalletTransferRequested(recipientPhone: draft.recipientPhone, amount: draft.amount, note: draft.note),
                 ),
           ),
         );

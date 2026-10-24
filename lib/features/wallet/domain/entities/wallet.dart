@@ -33,31 +33,6 @@ class WalletTransaction extends Equatable {
   List<Object?> get props => [id, label, date, amount, kind];
 }
 
-enum TopUpKind { mobileMoney, card }
-
-class TopUpSource extends Equatable {
-  const TopUpSource({required this.id, required this.kind, required this.label, required this.masked});
-  final String id;
-  final TopUpKind kind;
-
-  /// Opérateur ou réseau de carte (à valider : opérateurs Mobile Money au Bénin).
-  final String label;
-  final String masked;
-
-  @override
-  List<Object?> get props => [id, kind, label, masked];
-}
-
-class Beneficiary extends Equatable {
-  const Beneficiary({required this.id, required this.name, required this.phone});
-  final String id;
-  final String name;
-  final String phone;
-
-  @override
-  List<Object?> get props => [id, name, phone];
-}
-
 class WalletOverview extends Equatable {
   const WalletOverview({required this.wallet, required this.transactions});
   final Wallet wallet;
