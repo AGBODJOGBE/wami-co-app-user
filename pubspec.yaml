@@ -1,0 +1,55 @@
+name: wami
+description: WAMI — super app de mobilité, livraison, billets de bus et hébergement.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # État (couche présentation)
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+  # Injection de dépendances
+  get_it: ^8.0.2
+  # Navigation
+  go_router: ^14.6.2
+  # Réseau (couche data, prêt pour les vraies API)
+  dio: ^5.7.0
+  # Illustrations 3D et logos du design system
+  flutter_svg: ^2.0.16
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  bloc_test: ^9.1.7
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/illustrations/
+    - assets/logos/
+
+  fonts:
+    - family: Unbounded
+      fonts:
+        - asset: assets/fonts/Unbounded-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Unbounded-ExtraBold.ttf
+          weight: 800
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/DMSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans-Bold.ttf
+          weight: 700
