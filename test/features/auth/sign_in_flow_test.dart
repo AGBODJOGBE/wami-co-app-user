@@ -32,6 +32,8 @@ void main() {
     await tester.enterText(find.byType(TextFormField), '000000');
     await tester.pumpAndSettle();
     expect(find.text('Code de vérification'), findsOneWidget);
+    // Le message d'erreur masquerait le bas du formulaire suivant.
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
 
     await tester.enterText(find.byType(TextFormField), '123456');
     await tester.pumpAndSettle();
@@ -41,8 +43,10 @@ void main() {
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'Awa');
     await tester.enterText(fields.at(1), 'Dossou');
+    await tester.ensureVisible(find.text('Femme'));
     await tester.tap(find.text('Femme'));
-    await tester.enterText(fields.at(3), 'Motdepasse1');
+    // Champs : prénom, nom, mot de passe, puis e-mail et parrainage (facultatifs).
+    await tester.enterText(fields.at(2), 'Motdepasse1');
     await tester.ensureVisible(find.text('Créer mon compte'));
     await tester.tap(find.text('Créer mon compte'));
     await tester.pumpAndSettle();
