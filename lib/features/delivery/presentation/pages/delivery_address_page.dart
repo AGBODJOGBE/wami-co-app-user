@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/domain/service_type.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/wami_basics.dart';
 import '../../../../core/widgets/wami_buttons.dart';
@@ -86,7 +87,7 @@ class DeliveryAddressPage extends StatelessWidget {
                     label: 'Maintenant',
                     icon: Icons.schedule_rounded,
                     selected: !d.scheduled,
-                    onTap: () => cubit.update((d) => d.copyWith(scheduled: false)),
+                    onTap: () => cubit.update((d) => d.copyWith(scheduled: false, clearScheduledAt: true)),
                   ),
                   const SizedBox(width: 8),
                   WamiChip(
@@ -96,6 +97,16 @@ class DeliveryAddressPage extends StatelessWidget {
                   ),
                 ],
               ),
+              if (d.scheduled)
+                WamiOptionTile(
+                  title: d.scheduledAt == null
+                      ? 'Choisir la date et l’heure'
+                      : '${Fmt.relativeDay(d.scheduledAt!)} · ${Fmt.hhmm(d.scheduledAt!)}',
+                  subtitle: 'Au moins 15 minutes à l’avance',
+                  selected: d.scheduledAt != null,
+                  onTap: () => _pickDateTime(context, cubit, d.scheduledAt),
+                  leading: const IconBadge(Icons.event_rounded),
+                ),
             ],
           ),
           bottom: WamiPrimaryButton(
@@ -108,4 +119,23 @@ class DeliveryAddressPage extends StatelessWidget {
       },
     );
   }
+}
+
+/// Date puis heure de la livraison programmée.
+Future<void> _pickDateTime(BuildContext context, DeliveryCubit cubit, DateTime? current) async {
+  final now = DateTime.now();
+  final date = await showDatePicker(
+    context: context,
+    initialDate: current ?? now,
+    firstDate: now,
+    lastDate: now.add(const Duration(days: 30)),
+  );
+  if (date == null || !context.mounted) return;
+  final time = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay.fromDateTime(current ?? now.add(const Duration(hours: 1))),
+  );
+  if (time == null) return;
+  final at = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  cubit.update((d) => d.copyWith(scheduledAt: at));
 }

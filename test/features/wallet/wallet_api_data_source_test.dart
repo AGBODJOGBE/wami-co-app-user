@@ -81,13 +81,14 @@ void main() {
 
   test('recharge : suit le paiement jusqu’à sa validation puis relit le solde', () async {
     server
-      ..on('POST /api/wallets/w1/recharge', {'paymentIntentId': 'pi1', 'status': 'PROCESSING'}, status: 202)
+      ..on('POST /api/payment/recharge', {'paymentIntentId': 'pi1', 'status': 'PROCESSING'}, status: 202)
       ..on('GET /api/payment/status/pi1', {'status': 'PROCESSING'})
       ..on('GET /api/payment/status/pi1', {'status': 'COMPLETED'});
 
     await wallet.topUp(5000, '+2290197123456');
 
-    expect(server.last('POST /api/wallets/w1/recharge')!.data, {
+    expect(server.last('POST /api/payment/recharge')!.data, {
+      'walletId': 'w1',
       'amount': 5000,
       'phone': '+2290197123456',
       'description': 'Recharge WAMI',
@@ -98,8 +99,20 @@ void main() {
 
   test('recharge refusée par l’opérateur', () async {
     server
-      ..on('POST /api/wallets/w1/recharge', {'paymentIntentId': 'pi2', 'status': 'PROCESSING'}, status: 202)
+      ..on('POST /api/payment/recharge', {'paymentIntentId': 'pi2', 'status': 'PROCESSING'}, status: 202)
       ..on('GET /api/payment/status/pi2', {'status': 'FAILED', 'failureReason': 'timeout'});
+    expect(
+      () => wallet.topUp(5000, '+2290197123456'),
+      throwsA(isA<BusinessRuleException>().having((e) => e.code, 'code', 'payment_failed')),
+    );
+  });
+
+  test('recharge : aucun opérateur disponible (502)', () async {
+    server.on(
+      'POST /api/payment/recharge',
+      {'paymentIntentId': 'pi4', 'status': 'FAILED', 'error': 'All providers failed'},
+      status: 502,
+    );
     expect(
       () => wallet.topUp(5000, '+2290197123456'),
       throwsA(isA<BusinessRuleException>().having((e) => e.code, 'code', 'payment_failed')),
@@ -108,7 +121,7 @@ void main() {
 
   test('recharge jamais confirmée : message d’attente, pas d’échec', () async {
     server
-      ..on('POST /api/wallets/w1/recharge', {'paymentIntentId': 'pi3', 'status': 'PROCESSING'}, status: 202)
+      ..on('POST /api/payment/recharge', {'paymentIntentId': 'pi3', 'status': 'PROCESSING'}, status: 202)
       ..on('GET /api/payment/status/pi3', {'status': 'PROCESSING'});
     final short = WalletApiDataSource(
       server.client(),

@@ -72,7 +72,8 @@ void main() {
 
     test('500 et 429 : erreur serveur', () {
       expect(ApiClient.mapError(_error(500, null)), isA<ServerException>());
-      expect(ApiClient.mapError(_error(429, {'error': 'Trop de tentatives'})), isA<ServerException>());
+      final tooMany = ApiClient.mapError(_error(429, {'error': 'Too many login attempts'})) as ServerException;
+      expect(tooMany.message, contains('Trop de tentatives'));
     });
 
     test('coupure réseau', () {

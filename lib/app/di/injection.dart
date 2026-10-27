@@ -3,6 +3,7 @@ import '../../core/auth/session_store.dart';
 import '../../core/config/app_config.dart';
 import '../../core/data/fake_backend.dart';
 import '../../core/location/location_service.dart';
+import '../../core/location/place_geocoder.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_interceptor.dart';
@@ -43,7 +44,6 @@ import '../../features/lodging/domain/repositories/lodging_repository.dart';
 import '../../features/lodging/domain/usecases/lodging_usecases.dart';
 import '../../features/lodging/presentation/cubit/lodging_cubit.dart';
 import '../../features/mobility/data/datasources/mobility_fake_data_source.dart';
-import '../../features/mobility/data/datasources/place_geocoder.dart';
 import '../../features/mobility/data/datasources/mobility_remote_data_source.dart';
 import '../../features/mobility/data/repositories/mobility_repository_impl.dart';
 import '../../features/mobility/domain/repositories/mobility_repository.dart';
@@ -78,18 +78,18 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
-  // Branchés sur le back wami-co : authentification, mobilité, portefeuille.
+  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison.
   // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
   // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
   const stillSimulated = true;
   _home(stillSimulated);
   _mobility(fake);
-  _delivery(stillSimulated);
+  _delivery(fake);
   _bus(stillSimulated);
   _lodging(stillSimulated);
   _wallet(fake);
-  _account(stillSimulated);
-  _activities(stillSimulated);
+  _account(fake);
+  _activities(fake);
 }
 
 void _auth(bool fake) {
@@ -150,7 +150,7 @@ void _mobility(bool fake) {
 void _delivery(bool fake) {
   sl
     ..registerLazySingleton<DeliveryRemoteDataSource>(
-      () => fake ? DeliveryFakeDataSource(sl()) : DeliveryApiDataSource(sl()),
+      () => fake ? DeliveryFakeDataSource(sl()) : DeliveryApiDataSource(sl(), sl(), sl(), sl()),
     )
     ..registerLazySingleton<DeliveryRepository>(() => DeliveryRepositoryImpl(sl()))
     ..registerLazySingleton(() => const ValidateDeliveryAddresses())
@@ -193,17 +193,19 @@ void _wallet(bool fake) {
     )
     ..registerLazySingleton<WalletRepository>(() => WalletRepositoryImpl(sl()))
     ..registerLazySingleton(() => GetWalletOverview(sl()))
+    ..registerLazySingleton(() => GetTopUpSources(sl()))
+    ..registerLazySingleton(() => GetBeneficiaries(sl()))
     ..registerLazySingleton(() => TopUpWallet(sl()))
     ..registerLazySingleton(() => TransferMoney(sl()))
     ..registerFactory(
-      () => WalletBloc(getOverview: sl(), topUp: sl(), transfer: sl()),
+      () => WalletBloc(getOverview: sl(), getSources: sl(), getBeneficiaries: sl(), topUp: sl(), transfer: sl()),
     );
 }
 
 void _account(bool fake) {
   sl
     ..registerLazySingleton<AccountRemoteDataSource>(
-      () => fake ? AccountFakeDataSource(sl(), sl()) : AccountApiDataSource(sl()),
+      () => fake ? AccountFakeDataSource(sl(), sl()) : AccountApiDataSource(sl(), sl()),
     )
     ..registerLazySingleton<SettingsLocalDataSource>(InMemorySettingsDataSource.new)
     ..registerLazySingleton<AccountRepository>(() => AccountRepositoryImpl(sl(), sl()))

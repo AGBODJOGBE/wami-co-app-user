@@ -40,19 +40,34 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 |---|---|---|
 | Connexion | `POST /api/passengers/send-otp`, `verify-otp`, `register`, `login` | Numéro → code SMS → mot de passe ou inscription. Le jeton (1 an, sans renouvellement) est rangé dans le trousseau de l'appareil ; un 401 renvoie vers la connexion. |
 | Portefeuille | `GET/POST /api/wallets/:walletId/{balance,transactions,recharge,transfer}`, `GET /api/payment/status/:id` | Recharge Mobile Money asynchrone suivie jusqu'à sa validation. Transfert par numéro de téléphone. |
+| Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
+| Activités | `GET /api/passenger/delivery` | Livraisons seulement : le back n'expose pas l'historique des courses. |
+| Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
 | Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
 
-**Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, livraison, bus, hébergement, compte, activités, paramètres.
+**Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, bus, hébergement, paramètres.
 
-### Écarts connus avec le back
+### Fonctions du mobile que le back ne gère pas
 
-- **Recherche d'adresses** : le back n'a pas de géocodage. L'app utilise Nominatim (OpenStreetMap), limité au Bénin. Le serveur public est réservé à un usage léger : en production, prévoir un service dédié et l'indiquer par `WAMI_GEOCODER_URL`.
-- **Règles d'attente** : le back ne publie le tarif à la minute ni avant ni pendant la course. L'app déduit le tarif de ce qui a déjà été facturé ; la franchise gratuite vient de la course.
-- **Délai d'arrivée du chauffeur** : absent de `GET /rides/:id`. L'écran affiche « Chauffeur en route » ; le temps restant de la course est estimé à partir de la durée prévue.
-- **Pourboire et code de sécurité** : le back ne les gère pas, ils ont été retirés de l'app.
-- **Paiement** : prélevé automatiquement à l'arrivée par le back ; l'écran final ne fait que recueillir la note.
-- **Idempotence** : aucune route d'écriture du back n'accepte de clé d'idempotence. L'app ignore les doubles appuis, mais un retry réseau après timeout peut encore dupliquer un paiement ou un transfert.
-- **Messages d'erreur** : le back répond en anglais ; l'app traduit les refus du portefeuille. Les autres s'affichent tels quels.
+Règle du projet : **les fonctions prévues dans le mobile sont conservées** ; le back s'adapte ensuite.
+Tout ce que le back doit corriger ou ajouter est dans [`docs/BACKEND_A_FAIRE.md`](docs/BACKEND_A_FAIRE.md)
+(pourboire, code de sécurité, bénéficiaires, moyens de recharge, points, géocodage, livraison, bus, hébergement…).
+
+À savoir en attendant :
+- **Recherche d'adresses** : Nominatim (OpenStreetMap), limité au Bénin, usage léger seulement. Réglable par `WAMI_GEOCODER_URL`.
+- **Paiement d'une course** : prélevé par le back à l'arrivée ; le pourboire est envoyé mais ignoré par le back.
+- **Idempotence** : l'app ignore les doubles appuis, mais un retry réseau peut dupliquer un paiement.
+
+### Tester contre un back local
+
+```bash
+WAMI_LIVE_API=http://localhost:3000 WAMI_LIVE_PHONE=+2290197123456 WAMI_LIVE_PASSWORD=Motdepasse1 flutter test
+```
+
+Les tests de `test/integration/` s'ignorent sans ces variables. Le compte doit exister (inscription par code SMS).
+Sur une base neuve, le back demande d'abord ses tarifs et sa configuration de portefeuille (voir `docs/BACKEND_A_FAIRE.md`, points 1 et 2).
+
+---
 
 ## Architecture : Clean Architecture par feature
 

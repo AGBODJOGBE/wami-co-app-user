@@ -2,10 +2,13 @@ import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/phone.dart';
 import '../../domain/entities/wallet.dart';
 
 abstract interface class WalletRemoteDataSource {
   Future<WalletOverview> overview();
+  Future<List<TopUpSource>> sources();
+  Future<List<Beneficiary>> beneficiaries();
   Future<WalletOverview> topUp(int amount, String phone);
   Future<WalletOverview> transfer(String recipientPhone, int amount, String? note);
 }
@@ -51,14 +54,46 @@ class WalletApiDataSource implements WalletRemoteDataSource {
     );
   }
 
+  /// Le back n'a pas de moyens enregistrés : on propose le numéro du compte, qui est un Mobile Money utilisable.
+  @override
+  Future<List<TopUpSource>> sources() async {
+    final phone = _session.value?.phone;
+    if (phone == null) return const [];
+    return [
+      TopUpSource(
+        id: 'account-phone',
+        kind: TopUpKind.mobileMoney,
+        label: 'Mobile Money',
+        masked: BeninPhone.display(phone),
+        phone: phone,
+      ),
+    ];
+  }
+
+  /// Pas de carnet de bénéficiaires côté back : liste vide, le destinataire se saisit par son numéro.
+  @override
+  Future<List<Beneficiary>> beneficiaries() async => const [];
+
+  /// Passe par le module paiement (`/api/payment/recharge`) : contrairement à `/api/wallets/:id/recharge`,
+  /// il renvoie l'identifiant du paiement, indispensable pour le suivre.
   @override
   Future<WalletOverview> topUp(int amount, String phone) async {
-    final started = await _api.post(
-      '$_base/recharge',
-      body: {'amount': amount, 'phone': phone, 'description': 'Recharge WAMI'},
-    );
-    if (started['status'] == 'FAILED') throw const BusinessRuleException('payment_failed', 'Le paiement a échoué.');
-
+    final Map<String, dynamic> started;
+    try {
+      started = await _api.post(
+        '/api/payment/recharge',
+        body: {'walletId': _session.walletId, 'amount': amount, 'phone': phone, 'description': 'Recharge WAMI'},
+      );
+    } on ServerException catch (e) {
+      // 502 : aucun opérateur n'a pu lancer le paiement.
+      if (e.statusCode == 502) {
+        throw const BusinessRuleException(
+          'payment_failed',
+          'Paiement impossible pour le moment. Réessayez dans un instant.',
+        );
+      }
+      rethrow;
+    }
     await _waitForPayment(started['paymentIntentId'] as String);
     return overview();
   }
@@ -183,6 +218,39 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
   Future<WalletOverview> overview() async {
     await _fake.latency();
     return _snapshot();
+  }
+
+  @override
+  Future<List<TopUpSource>> sources() async {
+    await _fake.latency(0.4);
+    return const [
+      TopUpSource(
+        id: 's1',
+        kind: TopUpKind.mobileMoney,
+        label: '[Opérateur A]',
+        masked: '•• 12',
+        phone: '+2290100000012',
+      ),
+      TopUpSource(
+        id: 's2',
+        kind: TopUpKind.mobileMoney,
+        label: '[Opérateur B]',
+        masked: '•• 47',
+        phone: '+2290100000047',
+      ),
+      TopUpSource(id: 's3', kind: TopUpKind.card, label: 'Visa', masked: '•• 3021'),
+    ];
+  }
+
+  @override
+  Future<List<Beneficiary>> beneficiaries() async {
+    await _fake.latency(0.4);
+    return const [
+      Beneficiary(id: 'b1', name: '[Contact A]', phone: '+2290100000001'),
+      Beneficiary(id: 'b2', name: '[Contact B]', phone: '+2290100000002'),
+      Beneficiary(id: 'b3', name: '[Contact C]', phone: '+2290100000003'),
+      Beneficiary(id: 'b4', name: '[Contact D]', phone: '+2290100000004'),
+    ];
   }
 
   @override

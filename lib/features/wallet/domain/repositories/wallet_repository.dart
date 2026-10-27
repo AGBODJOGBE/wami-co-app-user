@@ -3,6 +3,8 @@ import '../entities/wallet.dart';
 
 abstract interface class WalletRepository {
   Future<Result<WalletOverview>> getOverview();
+  Future<Result<List<TopUpSource>>> getTopUpSources();
+  Future<Result<List<Beneficiary>>> getBeneficiaries();
 
   /// Recharge par Mobile Money : le serveur envoie une demande de confirmation sur [phone]
   /// et la méthode rend le portefeuille une fois le paiement validé.
