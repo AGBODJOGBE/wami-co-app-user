@@ -10,7 +10,9 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 ## 🔴 À corriger avant la mise en ligne
 
 ### 1. Les tarifs de course ne sont pas initialisés au démarrage
-- **Constat** : `POST /api/passenger/rides/estimate` répond `400 "No active pricing config for vehicleType=MOTO"` sur une base neuve.
+- **Constat** : `POST /api/passenger/rides/estimate` répond `500 "[PricingService] No active pricing config for vehicleType=MOTO"`
+  sur une base neuve (`ride_pricing_configs` vide), et `POST /api/passenger/rides` répond `400` avec le même message.
+  Un `500` empêche l'app de masquer le seul véhicule sans tarif : c'est toute l'estimation qui échoue.
 - **Cause** : `PricingService` lit la collection `ride_pricing_configs` (taux, part chauffeur, attente). Son seed
   (`src/modules/ride/infrastructure/persistence/mongodb/seeds/seedRidePricingConfigs.ts`) n'est appelé nulle part ; seul
   `seedPricingProfiles` est lancé au démarrage (`pricing_profiles`, qui contient bien les 16 profils actifs).

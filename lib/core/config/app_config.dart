@@ -22,6 +22,10 @@ class AppConfig {
   /// Adresse de base des API REST.
   final String apiBaseUrl;
 
+  /// Adresse du serveur sans `/api` final : les routes de l'app commencent déjà par `/api`,
+  /// donc `http://10.0.2.2:3000/api` et `http://10.0.2.2:3000` donnent le même résultat.
+  String get serverUrl => apiBaseUrl.replaceFirst(RegExp(r'/+$'), '').replaceFirst(RegExp(r'/api$'), '');
+
   /// `true` : les sources de données simulées remplacent les appels HTTP.
   final bool useFakeBackend;
 
