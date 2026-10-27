@@ -6,8 +6,12 @@ import 'package:wami/features/account/domain/entities/user_profile.dart';
 
 import '../../support/stub_server.dart';
 
-Map<String, dynamic> _profile(
-        {String first = 'Awa', String last = 'Dossou', String? email, String phone = '+2290197123456',}) =>
+Map<String, dynamic> _profile({
+  String first = 'Awa',
+  String last = 'Dossou',
+  String? email,
+  String phone = '+2290197123456',
+}) =>
     {
       'success': true,
       'data': {'firstName': first, 'lastName': last, 'phoneNumber': phone, if (email != null) 'email': email},

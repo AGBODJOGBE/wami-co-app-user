@@ -3,7 +3,7 @@ import 'package:wami/core/auth/auth_session.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/error/exceptions.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
-import 'package:wami/features/mobility/data/datasources/place_geocoder.dart';
+import 'package:wami/core/location/place_geocoder.dart';
 import 'package:wami/features/mobility/data/models/mobility_models.dart';
 import 'package:wami/features/mobility/domain/entities/place.dart';
 import 'package:wami/features/mobility/domain/entities/ride.dart';
@@ -13,7 +13,7 @@ import '../../support/stub_server.dart';
 
 class _NoGeocoder implements PlaceGeocoder {
   @override
-  Future<List<Place>> search(String query) async => const [];
+  Future<List<GeocodedPlace>> search(String query) async => const [];
 }
 
 const _from = Place(id: 'me', name: 'Ma position', address: 'Position actuelle', lat: 6.36, lng: 2.41);

@@ -115,7 +115,15 @@ class DeliveryCubit extends Cubit<DeliveryState> {
     }
     emit(state.copyWith(orderStatus: LoadStatus.ready));
     await _sub?.cancel();
-    _sub = _track(id).listen((t) => emit(state.copyWith(tracking: t)));
+    _sub = _track(id).listen(
+      (t) => emit(state.copyWith(tracking: t)),
+      // Livraison annulée ou interrompue : l'écran de suivi prévient et ramène à l'accueil.
+      onError: (Object e) => emit(
+        state.copyWith(
+          failure: e is DeliveryInterrupted ? ValidationFailure(e.message) : const NetworkFailure(),
+        ),
+      ),
+    );
   }
 
   @override

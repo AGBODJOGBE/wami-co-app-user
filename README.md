@@ -42,9 +42,10 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Portefeuille | `GET/POST /api/wallets/:walletId/{balance,transactions,recharge,transfer}`, `GET /api/payment/status/:id` | Recharge Mobile Money asynchrone suivie jusqu'à sa validation. Transfert par numéro de téléphone. |
 | Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
 | Activités | `GET /api/passenger/delivery` | Livraisons seulement : le back n'expose pas l'historique des courses. |
+| Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
 | Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
 
-**Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, livraison, bus, hébergement, paramètres.
+**Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, bus, hébergement, paramètres.
 
 ### Fonctions du mobile que le back ne gère pas
 

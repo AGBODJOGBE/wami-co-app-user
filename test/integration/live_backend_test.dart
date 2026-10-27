@@ -7,11 +7,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/config/app_config.dart';
 import 'package:wami/core/error/exceptions.dart';
+import 'package:wami/core/location/location_service.dart';
+import 'package:wami/core/location/place_geocoder.dart';
 import 'package:wami/core/network/api_client.dart';
 import 'package:wami/core/network/auth_interceptor.dart';
+import 'package:wami/features/account/data/datasources/account_data_sources.dart';
+import 'package:wami/features/activities/data/activity_repository_impl.dart';
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
+import 'package:wami/features/delivery/data/datasources/delivery_data_sources.dart';
+import 'package:wami/features/delivery/domain/entities/delivery.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
-import 'package:wami/features/mobility/data/datasources/place_geocoder.dart';
 import 'package:wami/features/mobility/domain/entities/place.dart';
 import 'package:wami/features/mobility/domain/entities/ride.dart';
 import 'package:wami/features/mobility/domain/entities/vehicle_offer.dart';
@@ -24,9 +29,12 @@ import 'package:wami/features/wallet/data/datasources/wallet_data_sources.dart';
 ///   flutter test test/integration --tags live
 /// ```
 /// Le compte doit déjà exister (inscription par code SMS, voir README).
-class _NoGeocoder implements PlaceGeocoder {
+/// Le back limite les connexions (5 par 15 minutes) : ne pas enchaîner les exécutions.
+class _FixedGeocoder implements PlaceGeocoder {
   @override
-  Future<List<Place>> search(String query) async => const [];
+  Future<List<GeocodedPlace>> search(String query) async => const [
+        GeocodedPlace(id: '1', name: 'Fidjrossè', address: 'Cotonou', lat: 6.3703, lng: 2.4300),
+      ];
 }
 
 void main() {
@@ -70,6 +78,16 @@ void main() {
   );
 
   test(
+    'profil : identité lue sur le back',
+    () async {
+      final p = await AccountApiDataSource(api, session).profile();
+      expect(p.fullName, session.value!.fullName);
+      expect(p.phone, phone);
+    },
+    skip: skip,
+  );
+
+  test(
     'portefeuille : solde et historique',
     () async {
       final overview = await WalletApiDataSource(api, session).overview();
@@ -80,12 +98,10 @@ void main() {
   );
 
   test(
-    'transfert vers soi-même : refusé en français',
+    'transfert vers soi-même : refusé',
     () async {
       expect(
-        () => WalletApiDataSource(api, session).transfer(phone!, 100, null),
-        throwsA(isA<BusinessRuleException>()),
-      );
+          () => WalletApiDataSource(api, session).transfer(phone!, 100, null), throwsA(isA<BusinessRuleException>()),);
     },
     skip: skip,
   );
@@ -110,9 +126,45 @@ void main() {
   );
 
   test(
+    'livraison : devis, commande, suivi, annulation, activités',
+    () async {
+      final deliveries = DeliveryApiDataSource(
+        api,
+        session,
+        const FixedLocationService(GeoPoint(6.3654, 2.4183)),
+        _FixedGeocoder(),
+        pollEvery: const Duration(milliseconds: 300),
+      );
+      const draft = DeliveryDraft(
+        dropoffAddress: 'Fidjrossè plage',
+        contactName: 'Koffi',
+        contactPhone: '01 97 00 00 01',
+        size: ParcelSize.small,
+      );
+
+      final quotes = await deliveries.quotes(draft);
+      expect(quotes, isNotEmpty);
+      expect(quotes.every((q) => q.price > 0), isTrue);
+      expect(quotes.map((q) => q.vehicle), contains(DeliveryVehicle.moto));
+
+      final id = await deliveries.placeOrder(draft.copyWith(vehicle: DeliveryVehicle.moto));
+      expect(id, isNotEmpty);
+      try {
+        // Aucun coursier en local : le suivi reste en attente (aucune étape), sans erreur de format.
+        await deliveries.track(id).timeout(const Duration(seconds: 2), onTimeout: (sink) => sink.close()).toList();
+      } finally {
+        await api.delete('/api/passenger/delivery/$id');
+      }
+      final list = await ActivityApiDataSource(api).fetch();
+      expect(list.first.status.name, 'cancelled');
+    },
+    skip: skip,
+  );
+
+  test(
     'course : estimation, demande, suivi, annulation',
     () async {
-      final rides = MobilityApiDataSource(api, session, _NoGeocoder(), pollEvery: const Duration(milliseconds: 300));
+      final rides = MobilityApiDataSource(api, session, _FixedGeocoder(), pollEvery: const Duration(milliseconds: 300));
 
       final offers = await rides.estimate(from, to);
       expect(offers.length, VehicleCategory.values.length);

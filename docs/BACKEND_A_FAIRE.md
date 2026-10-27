@@ -63,7 +63,9 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 | **Livraison** : encaissement à la livraison | rien (`B2cPaymentMethod` = CASH \| WALLET) | `codAmount` à la commande, encaissé par le coursier et reversé. |
 | **Livraison** : « le destinataire paie » | rien | `payer: SENDER \| RECIPIENT`. |
 | **Livraison** : code de remise visible par l'expéditeur | OTP vérifié par le coursier, non exposé | `handoverCode` dans le suivi, envoyé au destinataire. |
-| **Livraison** : véhicules proposés | MOTO, STANDARD, VAN selon le colis | l'app propose moto et tricycle : aligner la liste (ajouter `TRICYCLE` à la politique, ou changer l'app). |
+| **Livraison** : véhicules proposés | `B2cVehiclePolicy` : un grand colis ne peut partir qu'en `VAN`, un colis moyen en `STANDARD`/`CONFORT`/`VAN` | L'app propose maintenant ce que le back autorise (moto, tricycle, voiture, van). La règle « grand colis en tricycle » du mobile n'est plus appliquée : à confirmer côté produit. |
+| **Livraison** : adresse choisie dans une liste | pas de géocodage | l'app géocode le texte saisi et prend le premier résultat (risque d'erreur). Il faut `GET /api/places/search` et un choix d'adresse dans l'écran. |
+| **Livraison** : annulation depuis le suivi | `DELETE /api/passenger/delivery/:id` existe | pas de bouton « annuler » dans l'écran de suivi de l'app : à ajouter côté mobile. |
 | **Accueil** : bannières promotionnelles | codes promo existent, pas de flux d'accueil | `GET /api/passenger/home` → `{ promos[] }`. |
 | **Activités** : historique unifié (courses, livraisons, bus, hébergement) | historiques séparés par module | `GET /api/passenger/activities` paginé, ou l'app agrège elle-même. |
 | **Paramètres** (langue fr/fon/yoruba, notifications) | rien | `GET/PUT /api/passengers/settings`. Stockés sur l'appareil pour l'instant (non persistés après redémarrage). |

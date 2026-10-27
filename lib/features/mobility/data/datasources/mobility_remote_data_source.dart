@@ -1,12 +1,12 @@
 import '../../../../core/auth/current_session.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../../../core/location/place_geocoder.dart';
 import '../../../../core/network/api_client.dart';
 import '../../domain/entities/place.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
 import '../models/mobility_models.dart';
-import 'place_geocoder.dart';
 
 abstract interface class MobilityRemoteDataSource {
   Future<List<Place>> searchPlaces(String query);
@@ -41,7 +41,10 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
   static const _base = '/api/passenger/rides';
 
   @override
-  Future<List<Place>> searchPlaces(String query) => _geocoder.search(query);
+  Future<List<Place>> searchPlaces(String query) async => [
+        for (final g in await _geocoder.search(query))
+          Place(id: g.id, name: g.name, address: g.address, lat: g.lat, lng: g.lng),
+      ];
 
   /// Un appel d'estimation par type de véhicule : le back ne donne qu'un prix à la fois.
   @override

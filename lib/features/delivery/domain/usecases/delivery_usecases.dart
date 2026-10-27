@@ -8,6 +8,9 @@ import '../repositories/delivery_repository.dart';
 class ValidateDeliveryAddresses {
   const ValidateDeliveryAddresses();
 
+  /// Délai minimum exigé par le back pour une livraison programmée.
+  static const minimumLeadTime = Duration(minutes: 15);
+
   Failure? call(DeliveryDraft d) {
     if (d.dropoffAddress.trim().isEmpty && d.mode == DeliveryMode.send) {
       return const ValidationFailure('Indiquez l’adresse de livraison.');
@@ -17,6 +20,13 @@ class ValidateDeliveryAddresses {
     }
     if (d.contactPhone.replaceAll(' ', '').length < 8) {
       return ValidationFailure('Numéro du ${d.contactRole.toLowerCase()} incomplet.');
+    }
+    if (d.scheduled) {
+      final at = d.scheduledAt;
+      if (at == null) return const ValidationFailure('Choisissez la date et l’heure de la livraison.');
+      if (at.isBefore(DateTime.now().add(minimumLeadTime))) {
+        return const ValidationFailure('La livraison programmée doit être dans plus de 15 minutes.');
+      }
     }
     return null;
   }
@@ -30,13 +40,18 @@ class GetDeliveryQuotes implements UseCase<List<DeliveryQuote>, DeliveryDraft> {
   @override
   Future<Result<List<DeliveryQuote>>> call(DeliveryDraft draft) async {
     final result = await _repo.getQuotes(draft);
-    final best = DeliveryVehicle.recommendedFor(draft.size);
-    return result.map(
-      (quotes) => [
+    final preferred = DeliveryVehicle.recommendedFor(draft.size);
+    return result.map((quotes) {
+      if (quotes.isEmpty) return quotes;
+      // Le véhicule habituel pour ce colis s'il est proposé, sinon le moins cher (le back n'autorise que certains
+      // véhicules selon le colis : un grand colis part en van, par exemple).
+      final cheapest = quotes.reduce((a, b) => a.price <= b.price ? a : b).vehicle;
+      final best = quotes.any((q) => q.vehicle == preferred) ? preferred : cheapest;
+      return [
         for (final q in quotes)
           DeliveryQuote(vehicle: q.vehicle, price: q.price, etaMinutes: q.etaMinutes, suitable: q.vehicle == best),
-      ]..sort((a, b) => (b.suitable ? 1 : 0) - (a.suitable ? 1 : 0)),
-    );
+      ]..sort((a, b) => (b.suitable ? 1 : 0) - (a.suitable ? 1 : 0));
+    });
   }
 }
 

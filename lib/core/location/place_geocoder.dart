@@ -1,11 +1,26 @@
 import 'package:dio/dio.dart';
 
-import '../../../../core/error/exceptions.dart';
-import '../../domain/entities/place.dart';
+import '../error/exceptions.dart';
 
-/// Recherche d'adresses. Le back n'a pas (encore) de service de géocodage.
+/// Adresse trouvée par le géocodeur.
+class GeocodedPlace {
+  const GeocodedPlace({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.lat,
+    required this.lng,
+  });
+  final String id;
+  final String name;
+  final String address;
+  final double lat;
+  final double lng;
+}
+
+/// Recherche d'adresses, partagée par la mobilité et la livraison. Le back n'a pas (encore) de service de géocodage.
 abstract interface class PlaceGeocoder {
-  Future<List<Place>> search(String query);
+  Future<List<GeocodedPlace>> search(String query);
 }
 
 /// OpenStreetMap Nominatim, limité au Bénin.
@@ -29,7 +44,7 @@ class NominatimGeocoder implements PlaceGeocoder {
   final Dio _dio;
 
   @override
-  Future<List<Place>> search(String query) async {
+  Future<List<GeocodedPlace>> search(String query) async {
     try {
       final response = await _dio.get<Object?>(
         '/search',
@@ -46,13 +61,13 @@ class NominatimGeocoder implements PlaceGeocoder {
     }
   }
 
-  Place? _place(Map<String, dynamic> j) {
+  GeocodedPlace? _place(Map<String, dynamic> j) {
     final lat = double.tryParse('${j['lat']}');
     final lng = double.tryParse('${j['lon']}');
     if (lat == null || lng == null) return null;
     final full = (j['display_name'] as String? ?? '').split(',').map((s) => s.trim()).toList();
     final name = (j['name'] as String?)?.isNotEmpty ?? false ? j['name'] as String : full.first;
-    return Place(
+    return GeocodedPlace(
       id: '${j['place_id']}',
       name: name,
       address: full.skip(1).take(2).join(', '),

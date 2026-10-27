@@ -14,10 +14,27 @@ enum ParcelSize {
 
 enum DeliveryVehicle {
   moto('Moto'),
-  tricycle('Tricycle');
+  tricycle('Tricycle'),
+  standard('Voiture'),
+  van('Van');
 
   const DeliveryVehicle(this.label);
   final String label;
+
+  /// Nom du type de véhicule côté back (`MOTO`, `STANDARD`…).
+  String get apiName => switch (this) {
+        DeliveryVehicle.moto => 'MOTO',
+        DeliveryVehicle.tricycle => 'TRICYCLE',
+        DeliveryVehicle.standard => 'STANDARD',
+        DeliveryVehicle.van => 'VAN',
+      };
+
+  static DeliveryVehicle? fromApi(String? value) {
+    for (final v in values) {
+      if (v.apiName == value) return v;
+    }
+    return null;
+  }
 
   /// Règle métier : un grand colis part en tricycle, le reste en moto.
   static DeliveryVehicle recommendedFor(ParcelSize size) =>
@@ -41,6 +58,7 @@ class DeliveryDraft extends Equatable {
     this.cashAmount = 0,
     this.vehicle = DeliveryVehicle.moto,
     this.payer = DeliveryPayer.sender,
+    this.scheduledAt,
   });
 
   final DeliveryMode mode;
@@ -55,6 +73,9 @@ class DeliveryDraft extends Equatable {
   final int cashAmount;
   final DeliveryVehicle vehicle;
   final DeliveryPayer payer;
+
+  /// Date et heure choisies quand la livraison est programmée.
+  final DateTime? scheduledAt;
 
   /// Le contact saisi est le destinataire (envoi) ou l'expéditeur (récupération).
   String get contactRole => mode == DeliveryMode.send ? 'Destinataire' : 'Expéditeur';
@@ -72,6 +93,8 @@ class DeliveryDraft extends Equatable {
     int? cashAmount,
     DeliveryVehicle? vehicle,
     DeliveryPayer? payer,
+    DateTime? scheduledAt,
+    bool clearScheduledAt = false,
   }) {
     return DeliveryDraft(
       mode: mode ?? this.mode,
@@ -86,6 +109,7 @@ class DeliveryDraft extends Equatable {
       cashAmount: cashAmount ?? this.cashAmount,
       vehicle: vehicle ?? this.vehicle,
       payer: payer ?? this.payer,
+      scheduledAt: clearScheduledAt ? null : (scheduledAt ?? this.scheduledAt),
     );
   }
 
@@ -103,6 +127,7 @@ class DeliveryDraft extends Equatable {
         cashAmount,
         vehicle,
         payer,
+        scheduledAt,
       ];
 }
 
@@ -161,4 +186,10 @@ class DeliveryTracking extends Equatable {
 
   @override
   List<Object?> get props => [orderId, status, progress, handoverCode, courier, eta];
+}
+
+/// La livraison ne ira pas à son terme (annulée, échec de collecte ou de remise).
+class DeliveryInterrupted implements Exception {
+  const DeliveryInterrupted(this.message);
+  final String message;
 }
