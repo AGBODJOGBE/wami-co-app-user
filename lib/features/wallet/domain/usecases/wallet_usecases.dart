@@ -19,6 +19,22 @@ class GetWalletOverview implements UseCase<WalletOverview, NoParams> {
   Future<Result<WalletOverview>> call(NoParams _) => _repo.getOverview();
 }
 
+class GetTopUpSources implements UseCase<List<TopUpSource>, NoParams> {
+  const GetTopUpSources(this._repo);
+  final WalletRepository _repo;
+
+  @override
+  Future<Result<List<TopUpSource>>> call(NoParams _) => _repo.getTopUpSources();
+}
+
+class GetBeneficiaries implements UseCase<List<Beneficiary>, NoParams> {
+  const GetBeneficiaries(this._repo);
+  final WalletRepository _repo;
+
+  @override
+  Future<Result<List<Beneficiary>>> call(NoParams _) => _repo.getBeneficiaries();
+}
+
 class TopUpParams {
   const TopUpParams({required this.amount, required this.phone});
   final int amount;

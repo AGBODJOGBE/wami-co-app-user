@@ -134,7 +134,7 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     final ride = state.ride;
     if (ride == null) return;
     emit(state.copyWith(ratingStatus: LoadStatus.loading));
-    final result = await _rateRide(RideRating(rideId: ride.id, stars: e.stars, tags: e.tags));
+    final result = await _rateRide(RideRating(rideId: ride.id, stars: e.stars, tags: e.tags, tip: e.tip));
     emit(
       result.fold(
         (f) => state.copyWith(ratingStatus: LoadStatus.failure, failure: f),

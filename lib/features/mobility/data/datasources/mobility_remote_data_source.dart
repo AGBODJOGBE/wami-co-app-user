@@ -131,7 +131,12 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
   Future<void> rateRide(RideRating r) async {
     await _api.post(
       '$_base/${r.rideId}/rating',
-      body: {'score': r.stars, if (r.tags.isNotEmpty) 'comment': r.tags.join(', ')},
+      body: {
+        'score': r.stars,
+        if (r.tags.isNotEmpty) 'comment': r.tags.join(', '),
+        // Ignoré par le back pour l'instant (champ inconnu) : à brancher quand il gèrera le pourboire.
+        if (r.tip > 0) 'tip': r.tip,
+      },
     );
   }
 }

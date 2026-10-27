@@ -80,7 +80,13 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
   Stream<RideSnapshot> watchRide(String rideId) async* {
     final category = _rides[rideId] ?? VehicleCategory.moto;
     const driver = Driver(name: '[Nom du chauffeur]', rating: 4.9, vehicle: 'Moto · Bajaj Boxer', plate: '[PLAQUE]');
-    var snap = RideSnapshot(id: rideId, status: RideStatus.searching, category: category, fare: _grid[category]!.$1);
+    var snap = RideSnapshot(
+      id: rideId,
+      status: RideStatus.searching,
+      category: category,
+      fare: _grid[category]!.$1,
+      securityCode: '4821',
+    );
     yield snap;
 
     var step = 0;

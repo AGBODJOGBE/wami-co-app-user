@@ -67,6 +67,7 @@ class RideSnapshot extends Equatable {
     this.pauseFee = 0,
     this.policy,
     this.serverTotal,
+    this.securityCode,
   });
 
   final String id;
@@ -94,6 +95,9 @@ class RideSnapshot extends Equatable {
   /// Montant définitif donné par le serveur à la fin de la course (réduction et approche comprises).
   final int? serverTotal;
 
+  /// Code à donner au chauffeur avant le départ. `null` tant que le back ne le fournit pas : rien n'est affiché.
+  final String? securityCode;
+
   int get total => serverTotal ?? fare + waitingFee + pauseFee;
 
   RideSnapshot copyWith({
@@ -120,6 +124,7 @@ class RideSnapshot extends Equatable {
       pauseFee: pauseFee ?? this.pauseFee,
       policy: policy,
       serverTotal: serverTotal,
+      securityCode: securityCode,
     );
   }
 
@@ -138,17 +143,22 @@ class RideSnapshot extends Equatable {
         pauseFee,
         policy,
         serverTotal,
+        securityCode,
       ];
 }
 
-/// Note laissée en fin de course. Le paiement est prélevé automatiquement à l'arrivée : pas de pourboire pour l'instant.
+/// Note et pourboire laissés en fin de course.
+///
+/// Le back ne gère pas encore le pourboire : il est transmis (`tip`) mais ignoré tant que le back ne l'accepte pas
+/// (voir docs/BACKEND_A_FAIRE.md).
 class RideRating extends Equatable {
-  const RideRating({required this.rideId, required this.stars, this.tags = const {}});
+  const RideRating({required this.rideId, required this.stars, this.tags = const {}, this.tip = 0});
 
   final String rideId;
   final int stars;
   final Set<String> tags;
+  final int tip;
 
   @override
-  List<Object?> get props => [rideId, stars, tags];
+  List<Object?> get props => [rideId, stars, tags, tip];
 }

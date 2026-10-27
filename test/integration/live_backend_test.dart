@@ -90,20 +90,24 @@ void main() {
     skip: skip,
   );
 
-  test('recharge : le back est compris (réussie, refusée ou en attente, jamais une erreur de format)', () async {
-    final wallet = WalletApiDataSource(
-      api,
-      session,
-      pollEvery: const Duration(milliseconds: 200),
-      pollFor: const Duration(seconds: 1),
-    );
-    try {
-      await wallet.topUp(500, phone!);
-    } on BusinessRuleException catch (e) {
-      // Sans clés d'opérateur (local), le back répond 502 : l'app doit le traduire.
-      expect(e.code, anyOf('payment_failed', 'payment_pending'));
-    }
-  }, skip: skip,);
+  test(
+    'recharge : le back est compris (réussie, refusée ou en attente, jamais une erreur de format)',
+    () async {
+      final wallet = WalletApiDataSource(
+        api,
+        session,
+        pollEvery: const Duration(milliseconds: 200),
+        pollFor: const Duration(seconds: 1),
+      );
+      try {
+        await wallet.topUp(500, phone!);
+      } on BusinessRuleException catch (e) {
+        // Sans clés d'opérateur (local), le back répond 502 : l'app doit le traduire.
+        expect(e.code, anyOf('payment_failed', 'payment_pending'));
+      }
+    },
+    skip: skip,
+  );
 
   test(
     'course : estimation, demande, suivi, annulation',

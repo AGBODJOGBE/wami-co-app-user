@@ -13,7 +13,7 @@ import '../../../../core/widgets/wami_scaffold.dart';
 import '../../../../core/widgets/wami_selectors.dart';
 import '../bloc/ride_bloc.dart';
 
-/// Étape 4 : récapitulatif et note. Le paiement a déjà été prélevé à l'arrivée.
+/// Étape 4 : récapitulatif, note, pourboire et paiement.
 class RideRatingPage extends StatefulWidget {
   const RideRatingPage({super.key});
 
@@ -24,8 +24,10 @@ class RideRatingPage extends StatefulWidget {
 class _RideRatingPageState extends State<RideRatingPage> {
   int _stars = 5;
   final _tags = <String>{'Conduite sûre', 'Ponctuel'};
+  int _tip = 0;
 
   static const _allTags = ['Conduite sûre', 'Ponctuel', 'Véhicule propre', 'Sympathique', 'Bon itinéraire'];
+  static const _tips = [0, 200, 500, 1000];
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +36,7 @@ class _RideRatingPageState extends State<RideRatingPage> {
       listenWhen: (a, b) => a.ratingStatus != b.ratingStatus,
       listener: (context, state) {
         if (state.ratingStatus == LoadStatus.ready) {
-          showWamiMessage(context, 'Merci pour votre note !');
+          showWamiMessage(context, 'Merci ! Paiement effectué.');
           context.go(Routes.home);
         }
         if (state.failure != null) showWamiMessage(context, state.failure!.message);
@@ -42,7 +44,7 @@ class _RideRatingPageState extends State<RideRatingPage> {
       builder: (context, state) {
         final ride = state.ride;
         if (ride == null) return const Scaffold(body: WamiLoading());
-        final total = ride.total;
+        final total = ride.total + _tip;
         return WamiScreen(
           title: 'Vous êtes arrivé',
           showBack: false,
@@ -54,10 +56,11 @@ class _RideRatingPageState extends State<RideRatingPage> {
                     _line(context, 'Course ${ride.category.label}', ride.fare),
                     if (ride.waitingFee > 0) _line(context, 'Attente', ride.waitingFee),
                     if (ride.pauseFee > 0) _line(context, 'Pause', ride.pauseFee),
+                    if (_tip > 0) _line(context, 'Pourboire', _tip),
                     const Divider(height: 20),
                     Row(
                       children: [
-                        Text('Total payé', style: t.titleSmall),
+                        Text('Total', style: t.titleSmall),
                         const Spacer(),
                         NumberText(Fmt.fcfa(total), size: 18, glow: true),
                       ],
@@ -100,12 +103,26 @@ class _RideRatingPageState extends State<RideRatingPage> {
                     ),
                 ],
               ),
+              const SectionLabel('Pourboire'),
+              Row(
+                children: [
+                  for (final tip in _tips) ...[
+                    WamiChip(
+                      label: tip == 0 ? 'Aucun' : Fmt.fcfa(tip),
+                      selected: _tip == tip,
+                      expand: true,
+                      onTap: () => setState(() => _tip = tip),
+                    ),
+                    if (tip != _tips.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
             ],
           ),
           bottom: WamiPrimaryButton(
-            label: 'Envoyer ma note',
+            label: 'Payer · ${Fmt.fcfa(total)}',
             loading: state.ratingStatus == LoadStatus.loading,
-            onPressed: () => context.read<RideBloc>().add(RideRated(stars: _stars, tags: {..._tags})),
+            onPressed: () => context.read<RideBloc>().add(RideRated(stars: _stars, tags: {..._tags}, tip: _tip)),
           ),
         );
       },

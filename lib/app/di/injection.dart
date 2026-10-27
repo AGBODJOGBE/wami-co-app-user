@@ -193,10 +193,12 @@ void _wallet(bool fake) {
     )
     ..registerLazySingleton<WalletRepository>(() => WalletRepositoryImpl(sl()))
     ..registerLazySingleton(() => GetWalletOverview(sl()))
+    ..registerLazySingleton(() => GetTopUpSources(sl()))
+    ..registerLazySingleton(() => GetBeneficiaries(sl()))
     ..registerLazySingleton(() => TopUpWallet(sl()))
     ..registerLazySingleton(() => TransferMoney(sl()))
     ..registerFactory(
-      () => WalletBloc(getOverview: sl(), topUp: sl(), transfer: sl()),
+      () => WalletBloc(getOverview: sl(), getSources: sl(), getBeneficiaries: sl(), topUp: sl(), transfer: sl()),
     );
 }
 

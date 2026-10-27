@@ -110,7 +110,11 @@ class RideTrackingPage extends StatelessWidget {
       case RideStatus.driverEnRoute:
       case RideStatus.driverArrived:
         return [
-          if (driver != null) DriverCard(driver: driver),
+          if (driver != null)
+            DriverCard(
+              driver: driver,
+              trailing: ride.securityCode == null ? null : _CodeBadge(code: ride.securityCode!),
+            ),
           if (ride.status == RideStatus.driverArrived)
             WaitingMeter(waitedSeconds: ride.waitedSeconds, fee: ride.waitingFee, policy: state.policy),
           if (ride.status.canContactDriver && driver != null)
@@ -198,5 +202,22 @@ class RideTrackingPage extends StatelessWidget {
     if (r.waitingFee > 0) parts.add('attente ${Fmt.fcfa(r.waitingFee)}');
     if (r.pauseFee > 0) parts.add('pause ${Fmt.fcfa(r.pauseFee)}');
     return parts.join(' · ');
+  }
+}
+
+/// Code de sécurité à donner au chauffeur avant le départ.
+class _CodeBadge extends StatelessWidget {
+  const _CodeBadge({required this.code});
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text('CODE', style: Theme.of(context).textTheme.labelSmall),
+        NumberText(code, size: 16),
+      ],
+    );
   }
 }
