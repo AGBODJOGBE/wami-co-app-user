@@ -53,8 +53,10 @@ class HomeFakeDataSource implements HomeRemoteDataSource {
         ),
       ],
       quickDestinations: [
-        const QuickDestination(id: 'q1', label: 'Maison', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.home),
-        const QuickDestination(id: 'q2', label: 'Travail', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.work),
+        const QuickDestination(
+            id: 'q1', label: 'Maison', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.home,),
+        const QuickDestination(
+            id: 'q2', label: 'Travail', address: '[Quartier, Cotonou]', kind: QuickDestinationKind.work,),
         const QuickDestination(id: 'q3', label: 'Aéroport', address: 'Cadjèhoun', kind: QuickDestinationKind.recent),
       ],
     );

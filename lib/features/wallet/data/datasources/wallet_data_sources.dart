@@ -51,14 +51,24 @@ class WalletApiDataSource implements WalletRemoteDataSource {
     );
   }
 
+  /// Passe par le module paiement (`/api/payment/recharge`) : contrairement à `/api/wallets/:id/recharge`,
+  /// il renvoie l'identifiant du paiement, indispensable pour le suivre.
   @override
   Future<WalletOverview> topUp(int amount, String phone) async {
-    final started = await _api.post(
-      '$_base/recharge',
-      body: {'amount': amount, 'phone': phone, 'description': 'Recharge WAMI'},
-    );
-    if (started['status'] == 'FAILED') throw const BusinessRuleException('payment_failed', 'Le paiement a échoué.');
-
+    final Map<String, dynamic> started;
+    try {
+      started = await _api.post(
+        '/api/payment/recharge',
+        body: {'walletId': _session.walletId, 'amount': amount, 'phone': phone, 'description': 'Recharge WAMI'},
+      );
+    } on ServerException catch (e) {
+      // 502 : aucun opérateur n'a pu lancer le paiement.
+      if (e.statusCode == 502) {
+        throw const BusinessRuleException(
+            'payment_failed', 'Paiement impossible pour le moment. Réessayez dans un instant.',);
+      }
+      rethrow;
+    }
     await _waitForPayment(started['paymentIntentId'] as String);
     return overview();
   }
