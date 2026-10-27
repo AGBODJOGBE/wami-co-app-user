@@ -1,6 +1,7 @@
 import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/phone.dart';
 import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/user_profile.dart';
 
@@ -30,39 +31,85 @@ class InMemorySettingsDataSource implements SettingsLocalDataSource {
   }
 }
 
-UserProfile _profile(Map<String, dynamic> j) => UserProfile(
-      fullName: j['full_name'] as String,
-      phone: j['phone'] as String,
-      email: j['email'] as String? ?? '',
-      tier: j['tier'] as String? ?? '',
-      rating: (j['rating'] as num? ?? 5).toDouble(),
-      savedPlaces: (j['saved_places'] as List<dynamic>? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map((p) => SavedPlace(label: p['label'] as String, address: p['address'] as String))
-          .toList(),
-      emergencyContact: j['emergency_contact'] as String?,
-    );
+/// Questions fréquentes : contenu du mobile (le back n'en a pas).
+const _faqItems = [
+  FaqItem(
+    question: 'Comment est calculé le temps d’attente ?',
+    answer:
+        'Les premières minutes après l’arrivée du chauffeur sont gratuites, puis chaque minute entamée est facturée. Durée gratuite et tarif : [à valider].',
+  ),
+  FaqItem(
+    question: 'Le chauffeur a fait une pause, est-ce facturé ?',
+    answer: 'La pause s’affiche en direct pendant la course. Règle de facturation de la pause : [à valider].',
+  ),
+  FaqItem(
+    question: 'Comment annuler un billet de bus ?',
+    answer: 'Depuis Activités, ouvrez le billet puis « Annuler ». Remboursement selon la compagnie : [à valider].',
+  ),
+  FaqItem(
+    question: 'Mon colis n’est pas arrivé',
+    answer:
+        'Ouvrez le suivi depuis Activités et contactez le coursier, ou écrivez au support avec la référence de l’envoi.',
+  ),
+];
 
-/// Endpoints à valider.
+/// Identité du passager sur le back wami-co. Le reste du profil du mobile (niveau, lieux, contact d'urgence)
+/// n'existe pas côté back : il est gardé en mémoire de l'application (voir docs/BACKEND_A_FAIRE.md).
 class AccountApiDataSource implements AccountRemoteDataSource {
-  const AccountApiDataSource(this._api);
+  AccountApiDataSource(this._api, this._session);
   final ApiClient _api;
+  final CurrentSession _session;
+
+  // Pas de stockage côté back : perdus au redémarrage de l'application.
+  List<SavedPlace> _savedPlaces = const [];
+  String? _emergencyContact;
+
+  String get _userId => _session.value!.userId;
 
   @override
-  Future<UserProfile> profile() async => _profile(await _api.get('/v1/me'));
+  Future<UserProfile> profile() async {
+    final j = await _api.get('/api/passengers/profile');
+    return UserProfile(
+      fullName: '${j['firstName'] ?? ''} ${j['lastName'] ?? ''}'.trim(),
+      phone: j['phoneNumber'] as String? ?? '',
+      email: j['email'] as String? ?? '',
+      // Pas de programme de fidélité ni de note passager côté back : rien n'est affiché.
+      tier: '',
+      rating: 0,
+      savedPlaces: _savedPlaces,
+      emergencyContact: _emergencyContact,
+    );
+  }
 
   @override
-  Future<UserProfile> updateProfile(UserProfile p) async =>
-      _profile(await _api.put('/v1/me', body: {'full_name': p.fullName, 'phone': p.phone, 'email': p.email}));
+  Future<UserProfile> updateProfile(UserProfile p) async {
+    final current = await profile();
+    if (p.fullName.trim() != current.fullName) {
+      final parts = p.fullName.trim().split(RegExp(r'\s+'));
+      await _api.patch(
+        '/api/users/$_userId/name',
+        body: {'firstName': parts.first, 'lastName': parts.length > 1 ? parts.skip(1).join(' ') : parts.first},
+      );
+    }
+    final email = p.email.trim();
+    if (email.isNotEmpty && email != current.email) {
+      await _api.patch('/api/users/$_userId/email', body: {'newEmail': email});
+    }
+    final phone = BeninPhone.toInternational(p.phone) ?? p.phone.trim();
+    if (phone.isNotEmpty && phone != current.phone) {
+      await _api.patch('/api/users/$_userId/phone', body: {'newPhoneNumber': phone});
+    }
+    _savedPlaces = p.savedPlaces;
+    _emergencyContact = p.emergencyContact;
+    return profile();
+  }
+
+  // Pas de FAQ ni d'export de données côté back : contenus du mobile.
+  @override
+  Future<List<FaqItem>> faq() async => _faqItems;
 
   @override
-  Future<List<FaqItem>> faq() async => ((await _api.get('/v1/support/faq'))['items'] as List<dynamic>)
-      .cast<Map<String, dynamic>>()
-      .map((f) => FaqItem(question: f['question'] as String, answer: f['answer'] as String))
-      .toList();
-
-  @override
-  Future<void> requestDataExport() => _api.post('/v1/me/data-export');
+  Future<void> requestDataExport() async {}
 }
 
 class AccountFakeDataSource implements AccountRemoteDataSource {
@@ -116,26 +163,7 @@ class AccountFakeDataSource implements AccountRemoteDataSource {
   @override
   Future<List<FaqItem>> faq() async {
     await _fake.latency(0.5);
-    return const [
-      FaqItem(
-        question: 'Comment est calculé le temps d’attente ?',
-        answer:
-            'Les premières minutes après l’arrivée du chauffeur sont gratuites, puis chaque minute entamée est facturée. Durée gratuite et tarif : [à valider].',
-      ),
-      FaqItem(
-        question: 'Le chauffeur a fait une pause, est-ce facturé ?',
-        answer: 'La pause s’affiche en direct pendant la course. Règle de facturation de la pause : [à valider].',
-      ),
-      FaqItem(
-        question: 'Comment annuler un billet de bus ?',
-        answer: 'Depuis Activités, ouvrez le billet puis « Annuler ». Remboursement selon la compagnie : [à valider].',
-      ),
-      FaqItem(
-        question: 'Mon colis n’est pas arrivé',
-        answer:
-            'Ouvrez le suivi depuis Activités et contactez le coursier, ou écrivez au support avec la référence de l’envoi.',
-      ),
-    ];
+    return _faqItems;
   }
 
   @override

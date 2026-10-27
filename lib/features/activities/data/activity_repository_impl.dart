@@ -9,25 +9,54 @@ abstract interface class ActivityRemoteDataSource {
   Future<List<Activity>> fetch();
 }
 
-/// Endpoint à valider.
+/// Livraisons du passager (`GET /api/passenger/delivery`).
+///
+/// Les courses n'apparaissent pas encore : le back n'expose pas l'historique des courses du passager
+/// (`GetRideHistoryController` existe mais n'est branché sur aucune route, voir docs/BACKEND_A_FAIRE.md).
+/// Bus et hébergement n'existent pas côté back.
 class ActivityApiDataSource implements ActivityRemoteDataSource {
   const ActivityApiDataSource(this._api);
   final ApiClient _api;
 
   @override
   Future<List<Activity>> fetch() async {
-    final json = await _api.get('/v1/activities');
-    return (json['items'] as List<dynamic>).cast<Map<String, dynamic>>().map((j) {
-      return Activity(
-        id: j['id'] as String,
-        service: ServiceType.values.byName(j['service'] as String),
-        title: j['title'] as String,
-        subtitle: j['subtitle'] as String? ?? '',
-        date: DateTime.parse(j['date'] as String),
-        amount: j['amount'] as int,
-        status: ActivityStatus.values.byName(j['status'] as String),
-      );
-    }).toList();
+    final json = await _api.get('/api/passenger/delivery');
+    final items = (json['items'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    return items.map(delivery).toList();
+  }
+
+  static Activity delivery(Map<String, dynamic> j) {
+    final dropoff = (j['dropoff'] as Map<String, dynamic>?)?['address'] as String? ?? '';
+    final driver = (j['driver'] as Map<String, dynamic>?)?['name'] as String?;
+    final status = _status(j['status'] as String?, j['scheduledAt'] as String?);
+    return Activity(
+      id: j['id'] as String,
+      service: ServiceType.delivery,
+      title: dropoff.isEmpty ? 'Colis' : 'Colis vers $dropoff',
+      subtitle: switch (status) {
+        ActivityStatus.ongoing => driver == null ? 'Recherche d’un coursier' : 'Coursier : $driver',
+        ActivityStatus.upcoming => 'Livraison programmée',
+        ActivityStatus.done => 'Livré',
+        ActivityStatus.cancelled => 'Annulé',
+      },
+      date: DateTime.parse(j['createdAt'] as String).toLocal(),
+      amount: ((j['finalPrice'] ?? j['estimatedPrice']) as num?)?.toInt() ?? 0,
+      status: status,
+    );
+  }
+
+  static ActivityStatus _status(String? status, String? scheduledAt) {
+    switch (status) {
+      case 'COMPLETED' || 'RETURNED':
+        return ActivityStatus.done;
+      case 'CANCELLED' || 'PICKUP_FAILED' || 'DELIVERY_FAILED':
+        return ActivityStatus.cancelled;
+      case 'PENDING_MATCH':
+        final at = DateTime.tryParse(scheduledAt ?? '');
+        return at != null && at.isAfter(DateTime.now()) ? ActivityStatus.upcoming : ActivityStatus.ongoing;
+      default:
+        return ActivityStatus.ongoing;
+    }
   }
 }
 

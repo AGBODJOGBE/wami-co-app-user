@@ -82,7 +82,9 @@ class ApiClient {
         // 429 : limite de tentatives du back (ex. 5 connexions par 15 minutes), dont le message est en anglais.
         if (status == 429) {
           return const ServerException(
-              statusCode: 429, message: 'Trop de tentatives. Réessayez dans quelques minutes.',);
+            statusCode: 429,
+            message: 'Trop de tentatives. Réessayez dans quelques minutes.',
+          );
         }
         return ServerException(statusCode: status);
     }

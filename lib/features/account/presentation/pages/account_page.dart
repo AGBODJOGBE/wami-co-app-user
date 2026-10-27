@@ -44,7 +44,14 @@ class AccountPage extends StatelessWidget {
                             Text(p.fullName, style: t.titleMedium),
                             Text(p.phone, style: t.bodySmall),
                             const SizedBox(height: 4),
-                            Row(children: [WamiTag(p.tier), const SizedBox(width: 6), RatingText(p.rating, size: 11)]),
+                            if (p.tier.isNotEmpty || p.rating > 0)
+                              Row(
+                                children: [
+                                  if (p.tier.isNotEmpty) WamiTag(p.tier),
+                                  if (p.tier.isNotEmpty && p.rating > 0) const SizedBox(width: 6),
+                                  if (p.rating > 0) RatingText(p.rating, size: 11),
+                                ],
+                              ),
                           ],
                         ),
                       ),

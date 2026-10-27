@@ -78,7 +78,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
-  // Branchés sur le back wami-co : authentification, mobilité, portefeuille.
+  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités (livraisons).
   // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
   // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
   const stillSimulated = true;
@@ -88,8 +88,8 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   _bus(stillSimulated);
   _lodging(stillSimulated);
   _wallet(fake);
-  _account(stillSimulated);
-  _activities(stillSimulated);
+  _account(fake);
+  _activities(fake);
 }
 
 void _auth(bool fake) {
@@ -205,7 +205,7 @@ void _wallet(bool fake) {
 void _account(bool fake) {
   sl
     ..registerLazySingleton<AccountRemoteDataSource>(
-      () => fake ? AccountFakeDataSource(sl(), sl()) : AccountApiDataSource(sl()),
+      () => fake ? AccountFakeDataSource(sl(), sl()) : AccountApiDataSource(sl(), sl()),
     )
     ..registerLazySingleton<SettingsLocalDataSource>(InMemorySettingsDataSource.new)
     ..registerLazySingleton<AccountRepository>(() => AccountRepositoryImpl(sl(), sl()))

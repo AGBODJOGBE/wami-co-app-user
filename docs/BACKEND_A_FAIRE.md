@@ -30,6 +30,17 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 - `npm run dev` et `npm run dev:worker` appellent `cross-env`, absent de `package.json` : `sh: cross-env: not found` après `npm ci`.
 - **À faire** : `npm i -D cross-env`.
 
+### 5. L'historique des courses du passager n'est branché sur aucune route
+- **Constat** : `GET /api/passenger/rides` répond `404 Route not found`. `GetRideHistoryController` et `GetRideHistoryUseCase` existent
+  (avec une option `status`) mais `rideRoutes.ts` ne les monte pas.
+- **Effet** : l'écran Activités n'affiche que les livraisons ; aucune course passée n'apparaît.
+- **À faire** : `GET /api/passenger/rides?status=` → `{ success, data: { rides[], total } }` (le contrôleur est prêt).
+
+### 6. Changement de numéro de téléphone sans vérification
+- `PATCH /api/users/:id/phone { newPhoneNumber }` modifie le numéro de connexion sans code SMS sur le nouveau numéro.
+  Quiconque détient un jeton peut rediriger le compte. L'écran Profil de l'app appelle cette route.
+- **À faire** : exiger un code OTP envoyé au nouveau numéro (`send-otp` puis `verify-otp` avant le changement).
+
 ---
 
 ## 🟠 Fonctions du mobile que le back ne gère pas
@@ -43,7 +54,9 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 | **Bénéficiaires** du portefeuille | rien | `GET/POST/DELETE /api/wallets/:id/beneficiaries` → `{ id, name, phone }`. Liste vide en réel : le destinataire se saisit par son numéro. |
 | **Moyens de recharge enregistrés** (Mobile Money, cartes) | rien | `GET /api/wallets/:id/top-up-sources` → `{ id, kind: MOBILE_MONEY\|CARD, label, masked, phone? }`. En réel, l'app propose le numéro du compte ; les cartes restent simulées. |
 | **Points de fidélité** (`wallet.points`) | rien | champ `points` dans `GET /wallets/:id/balance`. Affiché à 0 en réel. |
-| **Niveau de fidélité, lieux enregistrés, contact d'urgence** (compte) | rien | `GET/PUT /api/passengers/profile` étendu (`tier`, `savedPlaces[]`, `emergencyContact`). Module compte simulé. |
+| **Niveau de fidélité, note passager, lieux enregistrés, contact d'urgence** (compte) | rien | `GET/PUT /api/passengers/profile` étendu (`tier`, `rating`, `savedPlaces[]`, `emergencyContact`). Nom, e-mail et téléphone sont réels ; niveau et note sont masqués, lieux et contact d'urgence gardés en mémoire de l'app (perdus au redémarrage). |
+| **Export des données personnelles** | rien | `POST /api/passengers/data-export`. Le bouton de l'app n'a pas d'effet réel. |
+| **FAQ du support** | rien | `GET /api/support/faq`. Contenu écrit dans l'app. |
 | **Tarif d'attente et franchise** affichés avant et pendant la course | `waitingFeePerMinute` en base, non exposé | exposer `waitingFeePerMinute`, `freeWaitingMinutes`, `pauseFreeMinutes`, `pauseFeePerMinute` dans `GET /rides/:id` (et dans l'estimation). L'app déduit le tarif de ce qui a déjà été facturé. |
 | **Délai d'arrivée du chauffeur** (« Chauffeur à 4 min ») | absent de `GET /rides/:id` | `driverEtaMinutes` et la position `driverLocation`. L'écran affiche « Chauffeur en route ». |
 | **Recherche d'adresses** | aucun géocodage | `GET /api/places/search?q=` → `[{ id, name, address, lat, lng }]` limité au Bénin. L'app utilise Nominatim public (usage léger seulement). |
