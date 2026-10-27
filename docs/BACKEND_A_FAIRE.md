@@ -60,7 +60,8 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 | **Export des données personnelles** | rien | `POST /api/passengers/data-export`. Le bouton de l'app n'a pas d'effet réel. |
 | **FAQ du support** | rien | `GET /api/support/faq`. Contenu écrit dans l'app. |
 | **Tarif d'attente et franchise** affichés avant et pendant la course | `waitingFeePerMinute` en base, non exposé | exposer `waitingFeePerMinute`, `freeWaitingMinutes`, `pauseFreeMinutes`, `pauseFeePerMinute` dans `GET /rides/:id` (et dans l'estimation). L'app déduit le tarif de ce qui a déjà été facturé. |
-| **Délai d'arrivée du chauffeur** (« Chauffeur à 4 min ») | absent de `GET /rides/:id` | `driverEtaMinutes` et la position `driverLocation`. L'écran affiche « Chauffeur en route ». |
+| **Délai d'arrivée du chauffeur** (« Chauffeur à 4 min ») | absent de `GET /rides/:id` ; présent une seule fois dans l'événement WebSocket `ride:driver_en_route` (`etaToPickupSeconds`) | `driverEtaMinutes` et la position `driverLocation` dans `GET /rides/:id`, pour qu'un écran rouvert ou reconnecté les retrouve. L'écran affiche « Chauffeur en route ». |
+| **Livraison en temps réel** | le WebSocket n'envoie au passager que `b2c:driver:location` (salle `order:{id}`) | émettre aussi les changements de statut de la commande (coursier trouvé, colis récupéré, livré, annulé) dans `order:{id}`. L'app les écoutera comme pour la course ; en attendant elle interroge le suivi toutes les 3 s. |
 | **Recherche d'adresses** | aucun géocodage | `GET /api/places/search?q=` → `[{ id, name, address, lat, lng }]` limité au Bénin. L'app utilise Nominatim public (usage léger seulement). |
 | **Livraison** : encaissement à la livraison | rien (`B2cPaymentMethod` = CASH \| WALLET) | `codAmount` à la commande, encaissé par le coursier et reversé. |
 | **Livraison** : « le destinataire paie » | rien | `payer: SENDER \| RECIPIENT`. |

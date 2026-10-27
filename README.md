@@ -24,11 +24,18 @@ flutter run
 # Back wami-co (https://github.com/AGBODJOGBE/wami-co)
 flutter run --dart-define=WAMI_FAKE_BACKEND=false --dart-define=WAMI_API_URL=https://api.exemple.bj
 
+# Back lancé sur le PC, app dans l'émulateur Android (10.0.2.2 = le PC vu depuis l'émulateur)
+flutter run --dart-define=WAMI_FAKE_BACKEND=false --dart-define=WAMI_API_URL=http://10.0.2.2:3000/api
+
 flutter analyze
 flutter test
 ```
 
 Autre réglage : `--dart-define=WAMI_GEOCODER_URL=…` (service de recherche d'adresses, voir plus bas).
+
+`WAMI_API_URL` s'écrit avec ou sans `/api` final, les deux marchent. Le `http` n'est autorisé qu'en debug,
+vers `10.0.2.2`, `localhost` et `127.0.0.1` (`android/app/src/debug/res/xml/network_security_config.xml`) ;
+la version publiée exige `https`.
 
 ---
 
@@ -43,7 +50,7 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
 | Activités | `GET /api/passenger/delivery` | Livraisons seulement : le back n'expose pas l'historique des courses. |
 | Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
-| Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
+| Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi en temps réel par WebSocket (salle `ride:{id}`), avec polling de secours (voir plus bas). Paiement `MIXED` : portefeuille, puis espèces. |
 
 **Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, bus, hébergement, paramètres.
 
@@ -144,7 +151,16 @@ Chaque feature a une interface `XRemoteDataSource` avec deux implémentations :
 1. Ajuster les chemins d'endpoint et les clés JSON dans `XApiDataSource`. Ils sont marqués *à valider*.
 2. Lancer avec `WAMI_FAKE_BACKEND=false`.
 
-Le suivi d'une course ou d'un colis se fait aujourd'hui par **polling**. Il est prévu de le remplacer par un WebSocket (Socket.io) dans `watchRide` / `track`, sans toucher au domaine ni à l'UI.
+### Temps réel (Socket.io)
+
+- **Course** : `core/network/realtime_signals.dart` ouvre le WebSocket du back avec le jeton de la session et rejoint la
+  salle `ride:{id}` (`ride:join`). Chaque événement (`ride:driver_assigned`, `ride:driver_en_route`, `ride:driver_arrived`,
+  `ride:started`, `ride:paused`, `ride:resumed`, `ride:completed`, `ride:cancelled`, `ride:no_driver_found`) déclenche une
+  relecture immédiate de `GET /rides/:id`, qui reste la seule source de l'état affiché.
+- **Secours** : WebSocket connecté, l'app relit quand même la course toutes les 15 s (un signal perdu est rattrapé).
+  WebSocket coupé, elle revient au polling toutes les 3 s. L'écran ne dépend jamais du WebSocket.
+- **Livraison** : toujours en polling. Le back n'envoie au passager que la position du coursier (`b2c:driver:location`),
+  aucun changement de statut ; l'app n'a pas encore de vraie carte pour afficher cette position.
 
 ---
 

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import '../../../../core/auth/current_session.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/location/place_geocoder.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/realtime_signals.dart';
 import '../../domain/entities/place.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
@@ -24,7 +27,9 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
     this._api,
     this._session,
     this._geocoder, {
+    this.realtime = const NoRealtimeSignals(),
     this.pollEvery = const Duration(seconds: 3),
+    this.connectedPollEvery = const Duration(seconds: 15),
     this.maxConsecutiveErrors = 5,
   });
 
@@ -32,8 +37,14 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
   final CurrentSession _session;
   final PlaceGeocoder _geocoder;
 
-  /// Suivi par interrogation régulière ; un WebSocket pourra le remplacer sans toucher au domaine.
+  /// Signaux du WebSocket : la course est relue dès qu'un statut change.
+  final RealtimeSignals realtime;
+
+  /// Interrogation régulière quand le WebSocket est coupé (ou absent).
   final Duration pollEvery;
+
+  /// Interrogation de secours quand le WebSocket est connecté : un signal perdu est rattrapé.
+  final Duration connectedPollEvery;
 
   /// Coupures réseau tolérées d'affilée avant d'abandonner le suivi.
   final int maxConsecutiveErrors;
@@ -108,20 +119,36 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
 
   @override
   Stream<RideSnapshot> watchRide(String rideId) async* {
-    var errors = 0;
-    while (true) {
-      try {
-        final snap = MobilityModels.snapshot(await _api.get('$_base/$rideId'));
-        errors = 0;
-        yield snap;
-        if (snap.status.isFinal) return;
-      } on NetworkException {
-        // Tunnel, zone sans réseau : on réessaie sans casser le suivi.
-        if (++errors >= maxConsecutiveErrors) rethrow;
-      } on ServerException {
-        if (++errors >= maxConsecutiveErrors) rethrow;
+    // Un signal reçu pendant une lecture n'est pas perdu : la lecture suivante part aussitôt.
+    var signalled = false;
+    Completer<void>? wake;
+    final signals = realtime.ride(rideId).listen((_) {
+      signalled = true;
+      final w = wake;
+      if (w != null && !w.isCompleted) w.complete();
+    });
+    try {
+      var errors = 0;
+      while (true) {
+        signalled = false;
+        try {
+          final snap = MobilityModels.snapshot(await _api.get('$_base/$rideId'));
+          errors = 0;
+          yield snap;
+          if (snap.status.isFinal) return;
+        } on NetworkException {
+          // Tunnel, zone sans réseau : on réessaie sans casser le suivi.
+          if (++errors >= maxConsecutiveErrors) rethrow;
+        } on ServerException {
+          if (++errors >= maxConsecutiveErrors) rethrow;
+        }
+        if (!signalled) {
+          final w = wake = Completer<void>();
+          await Future.any([Future<void>.delayed(realtime.isConnected ? connectedPollEvery : pollEvery), w.future]);
+        }
       }
-      await Future<void>.delayed(pollEvery);
+    } finally {
+      await signals.cancel();
     }
   }
 

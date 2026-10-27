@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wami/core/auth/auth_session.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/config/app_config.dart';
 import 'package:wami/core/error/exceptions.dart';
@@ -11,6 +12,7 @@ import 'package:wami/core/location/location_service.dart';
 import 'package:wami/core/location/place_geocoder.dart';
 import 'package:wami/core/network/api_client.dart';
 import 'package:wami/core/network/auth_interceptor.dart';
+import 'package:wami/core/network/realtime_signals.dart';
 import 'package:wami/features/account/data/datasources/account_data_sources.dart';
 import 'package:wami/features/activities/data/activity_repository_impl.dart';
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
@@ -101,7 +103,9 @@ void main() {
     'transfert vers soi-même : refusé',
     () async {
       expect(
-          () => WalletApiDataSource(api, session).transfer(phone!, 100, null), throwsA(isA<BusinessRuleException>()),);
+        () => WalletApiDataSource(api, session).transfer(phone!, 100, null),
+        throwsA(isA<BusinessRuleException>()),
+      );
     },
     skip: skip,
   );
@@ -182,6 +186,30 @@ void main() {
       await rides.cancelRide(id);
       final last = await rides.watchRide(id).last;
       expect(last.status, RideStatus.cancelled);
+    },
+    skip: skip,
+  );
+
+  test(
+    'temps réel : le WebSocket accepte le jeton de la session et refuse un faux',
+    () async {
+      Future<bool> connects(CurrentSession s) async {
+        final signals = SocketIoRealtimeSignals(AppConfig(apiBaseUrl: url!, useFakeBackend: false), s);
+        final sub = signals.ride('test').listen((_) {});
+        try {
+          for (var i = 0; i < 50 && !signals.isConnected; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+          return signals.isConnected;
+        } finally {
+          await sub.cancel();
+        }
+      }
+
+      expect(await connects(session), isTrue);
+      final forged = CurrentSession()
+        ..set(AuthSession.fromJson({...session.value!.toJson(), 'token': 'faux.jeton.signature'}));
+      expect(await connects(forged), isFalse);
     },
     skip: skip,
   );

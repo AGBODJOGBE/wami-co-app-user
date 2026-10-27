@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/auth/auth_session.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/error/exceptions.dart';
+import 'package:wami/core/network/realtime_signals.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
 import 'package:wami/core/location/place_geocoder.dart';
 import 'package:wami/features/mobility/data/models/mobility_models.dart';
@@ -14,6 +17,21 @@ import '../../support/stub_server.dart';
 class _NoGeocoder implements PlaceGeocoder {
   @override
   Future<List<GeocodedPlace>> search(String query) async => const [];
+}
+
+/// WebSocket simulé : `fire` envoie un signal de changement de statut.
+class _FakeSignals implements RealtimeSignals {
+  final _controller = StreamController<void>.broadcast();
+
+  bool get listening => _controller.hasListener;
+
+  void fire() => _controller.add(null);
+
+  @override
+  bool get isConnected => true;
+
+  @override
+  Stream<void> ride(String rideId) => _controller.stream;
 }
 
 const _from = Place(id: 'me', name: 'Ma position', address: 'Position actuelle', lat: 6.36, lng: 2.41);
@@ -202,6 +220,61 @@ void main() {
       final seen = await rides.watchRide('r1').map((s) => s.status).toList();
 
       expect(seen, [RideStatus.searching, RideStatus.driverEnRoute, RideStatus.completed]);
+    });
+
+    test('suivi temps réel : chaque signal du WebSocket relit la course aussitôt', () async {
+      final signals = _FakeSignals();
+      final live = MobilityApiDataSource(
+        server.client(session: CurrentSession()),
+        CurrentSession(),
+        _NoGeocoder(),
+        realtime: signals,
+        // Sans signal, aucune relecture avant une heure : seuls les signaux font avancer le suivi.
+        pollEvery: const Duration(hours: 1),
+        connectedPollEvery: const Duration(hours: 1),
+      );
+      server
+        ..on('GET /api/passenger/rides/r1', {'success': true, 'data': _ride('PENDING_MATCH')})
+        ..on('GET /api/passenger/rides/r1', {'success': true, 'data': _ride('DRIVER_ARRIVED')})
+        ..on('GET /api/passenger/rides/r1', {
+          'success': true,
+          'data': _ride('COMPLETED', extra: {'finalPrice': 2800}),
+        });
+
+      final seen = <RideStatus>[];
+      final done = live.watchRide('r1').map((s) => s.status).forEach((s) {
+        seen.add(s);
+        // Le back annonce le changement suivant juste après chaque lecture.
+        Future<void>.delayed(Duration.zero, signals.fire);
+      });
+      await done.timeout(const Duration(seconds: 5));
+
+      expect(seen, [RideStatus.searching, RideStatus.driverArrived, RideStatus.completed]);
+      expect(signals.listening, isFalse, reason: 'la salle de la course est quittée à la fin du suivi');
+    });
+
+    test('suivi temps réel : un signal reçu pendant une lecture n’est pas perdu', () async {
+      final signals = _FakeSignals();
+      final live = MobilityApiDataSource(
+        server.client(session: CurrentSession()),
+        CurrentSession(),
+        _NoGeocoder(),
+        realtime: signals,
+        pollEvery: const Duration(hours: 1),
+        connectedPollEvery: const Duration(hours: 1),
+      );
+      server
+        ..on('GET /api/passenger/rides/r1', {'success': true, 'data': _ride('IN_PROGRESS')})
+        ..on('GET /api/passenger/rides/r1', {
+          'success': true,
+          'data': _ride('COMPLETED', extra: {'finalPrice': 2800}),
+        });
+      // Le signal arrive avant même la fin de la première lecture.
+      server.onRequest = signals.fire;
+
+      final seen = await live.watchRide('r1').map((s) => s.status).toList().timeout(const Duration(seconds: 5));
+
+      expect(seen, [RideStatus.inProgress, RideStatus.completed]);
     });
 
     test('suivi : abandonne après trop de coupures d’affilée', () {

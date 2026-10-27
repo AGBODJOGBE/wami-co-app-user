@@ -7,6 +7,7 @@ import '../../core/location/place_geocoder.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_interceptor.dart';
+import '../../core/network/realtime_signals.dart';
 import '../../features/account/data/datasources/account_data_sources.dart';
 import '../../features/account/data/repositories/account_repository_impl.dart';
 import '../../features/account/domain/repositories/account_repository.dart';
@@ -72,6 +73,9 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
     )
     ..registerLazySingleton(() => AuthInterceptor(sl()))
     ..registerLazySingleton(() => ApiClient(sl(), sl()))
+    ..registerLazySingleton<RealtimeSignals>(
+      () => config.useFakeBackend ? const NoRealtimeSignals() : SocketIoRealtimeSignals(sl(), sl()),
+    )
     ..registerLazySingleton(() => FakeBackend(sl()))
     ..registerLazySingleton(() => AppRouter(sl()));
 
@@ -122,7 +126,7 @@ void _mobility(bool fake) {
     )
     ..registerLazySingleton<PlaceGeocoder>(() => NominatimGeocoder(baseUrl: sl<AppConfig>().geocoderUrl))
     ..registerLazySingleton<MobilityRemoteDataSource>(
-      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl(), sl(), sl()),
+      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl(), sl(), sl(), realtime: sl()),
     )
     ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl(), sl()))
     ..registerLazySingleton(() => GetCurrentPlace(sl()))
