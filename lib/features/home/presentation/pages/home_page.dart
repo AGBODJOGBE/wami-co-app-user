@@ -9,7 +9,6 @@ import '../../../../core/theme/wami_tokens.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/wami_background.dart';
 import '../../../../core/widgets/wami_basics.dart';
-import '../../../../core/widgets/wami_buttons.dart';
 import '../../../../core/widgets/wami_scaffold.dart';
 import '../../domain/entities/home_feed.dart';
 import '../cubit/home_cubit.dart';
@@ -17,19 +16,24 @@ import '../widgets/promo_carousel.dart';
 import '../widgets/service_grid.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.headerAction});
+
+  /// Bouton placé à droite du logo (la cloche des notifications). Fourni par le routeur : l'accueil ne connaît pas
+  /// les autres fonctionnalités.
+  final Widget? headerAction;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<HomeCubit>()..load(),
-      child: const _HomeView(),
+      child: _HomeView(headerAction: headerAction),
     );
   }
 }
 
 class _HomeView extends StatelessWidget {
-  const _HomeView();
+  const _HomeView({this.headerAction});
+  final Widget? headerAction;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +48,7 @@ class _HomeView extends StatelessWidget {
                   failure: state.failure!,
                   onRetry: () => context.read<HomeCubit>().load(),
                 ),
-              HomeStatus.ready => _HomeContent(feed: state.feed!),
+              HomeStatus.ready => _HomeContent(feed: state.feed!, headerAction: headerAction),
             };
           },
         ),
@@ -54,8 +58,9 @@ class _HomeView extends StatelessWidget {
 }
 
 class _HomeContent extends StatelessWidget {
-  const _HomeContent({required this.feed});
+  const _HomeContent({required this.feed, this.headerAction});
   final HomeFeed feed;
+  final Widget? headerAction;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +78,7 @@ class _HomeContent extends StatelessWidget {
               children: [
                 const WamiLogo(height: 24),
                 const Spacer(),
-                WamiIconButton(icon: Icons.notifications_none_rounded, tooltip: 'Notifications', onPressed: () {}),
+                if (headerAction != null) headerAction!,
               ],
             ),
           ),

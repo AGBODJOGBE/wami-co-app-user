@@ -5,6 +5,9 @@ abstract final class Routes {
   // Connexion.
   static const auth = '/auth';
 
+  // Notifications (plein écran, depuis la cloche de l'accueil).
+  static const notifications = '/notifications';
+
   // Onglets.
   static const home = '/home';
   static const activities = '/activities';

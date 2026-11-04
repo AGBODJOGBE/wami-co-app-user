@@ -19,6 +19,7 @@ import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
 import 'package:wami/features/delivery/data/datasources/delivery_data_sources.dart';
 import 'package:wami/features/delivery/domain/entities/delivery.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
+import 'package:wami/features/notifications/data/datasources/notifications_data_sources.dart';
 import 'package:wami/features/referral/data/datasources/referral_data_sources.dart';
 import 'package:wami/features/mobility/domain/entities/place.dart';
 import 'package:wami/features/mobility/domain/entities/ride.dart';
@@ -234,6 +235,20 @@ void main() {
         referral.apply(overview.code),
         throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('propre code'))),
       );
+    },
+    skip: skip,
+  );
+
+  test(
+    'notifications : page lue sans erreur de format, marquage comme lue, notification inconnue tolérée',
+    () async {
+      final notifications = NotificationsApiDataSource(api);
+      final page = await notifications.page(1);
+      expect(page.page, 1);
+      expect(page.totalPages, greaterThanOrEqualTo(1));
+      expect(page.items.every((n) => n.id.isNotEmpty && n.type.isNotEmpty), isTrue);
+      if (page.items.isNotEmpty) await notifications.markAsRead(page.items.first.id);
+      await notifications.markAsRead('notification-inconnue');
     },
     skip: skip,
   );

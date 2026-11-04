@@ -8,6 +8,7 @@ import 'features/account/domain/entities/app_settings.dart';
 import 'features/account/presentation/cubit/profile_cubit.dart';
 import 'features/account/presentation/cubit/settings_cubit.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
+import 'features/notifications/presentation/cubit/notifications_cubit.dart';
 import 'features/wallet/presentation/bloc/wallet_bloc.dart';
 
 /// Racine de l'application.
@@ -28,6 +29,7 @@ class WamiApp extends StatelessWidget {
         // Profil et portefeuille ne se chargent qu'une fois connecté : voir _SessionBridge.
         BlocProvider(create: (_) => sl<ProfileCubit>()),
         BlocProvider(create: (_) => sl<WalletBloc>()),
+        BlocProvider(create: (_) => sl<NotificationsCubit>()),
       ],
       child: _SessionBridge(
         child: BlocBuilder<SettingsCubit, SettingsState>(
@@ -74,6 +76,7 @@ class _SessionBridgeState extends State<_SessionBridge> {
   void _load(BuildContext context) {
     context.read<ProfileCubit>().load();
     context.read<WalletBloc>().add(const WalletStarted());
+    context.read<NotificationsCubit>().load();
   }
 
   @override
@@ -86,6 +89,7 @@ class _SessionBridgeState extends State<_SessionBridge> {
         } else {
           context.read<ProfileCubit>().reset();
           context.read<WalletBloc>().add(const WalletCleared());
+          context.read<NotificationsCubit>().reset();
         }
       },
       child: widget.child,
