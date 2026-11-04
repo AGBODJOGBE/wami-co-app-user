@@ -62,6 +62,7 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 Règle du projet : **les fonctions prévues dans le mobile sont conservées** ; le back s'adapte ensuite.
 Tout ce que le back doit corriger ou ajouter est dans [`docs/BACKEND_A_FAIRE.md`](docs/BACKEND_A_FAIRE.md)
 (pourboire, code de sécurité, bénéficiaires, moyens de recharge, points, géocodage, livraison, bus, hébergement…).
+Les routes qui manquent au back, avec la logique métier déduite des écrans (accueil, bus, hébergement, paramètres, SOS et partage de course), sont dans [`docs/BACKEND_ROUTES_MANQUANTES.md`](docs/BACKEND_ROUTES_MANQUANTES.md).
 
 À savoir en attendant :
 - **Recherche d'adresses** : Nominatim (OpenStreetMap), limité au Bénin, usage léger seulement. Réglable par `WAMI_GEOCODER_URL`.
