@@ -79,6 +79,9 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 
 ## 🟠 Fonctions du mobile que le back ne gère pas
 
+> Les modules entiers qui n'ont aucune route (accueil, bus, hébergement, paramètres, SOS/partage/messagerie de course) sont spécifiés
+> écran par écran dans [`BACKEND_ROUTES_MANQUANTES.md`](BACKEND_ROUTES_MANQUANTES.md).
+
 L'app les conserve. Quand le back les proposera, il suffira de brancher la source de données.
 
 | Fonction du mobile | Aujourd'hui côté back | Demande |
