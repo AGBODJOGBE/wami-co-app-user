@@ -68,3 +68,25 @@ final class RideRated extends RideEvent {
   @override
   List<Object?> get props => [stars, tags, tip];
 }
+
+/// Le passager propose une nouvelle destination pendant la course.
+final class RideDestinationChangeRequested extends RideEvent {
+  const RideDestinationChangeRequested(this.place);
+  final Place place;
+
+  @override
+  List<Object?> get props => [place];
+}
+
+/// Part du portefeuille pour la course en cours (`null` : automatique).
+final class RidePaymentSplitSet extends RideEvent {
+  const RidePaymentSplitSet(this.walletAmount);
+  final int? walletAmount;
+
+  @override
+  List<Object?> get props => [walletAmount];
+}
+
+final class RidePromoHistoryRequested extends RideEvent {
+  const RidePromoHistoryRequested();
+}

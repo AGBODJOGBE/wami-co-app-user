@@ -304,6 +304,33 @@ void main() {
   );
 
   test(
+    'course : répartition du paiement enregistrée, changement de destination refusé hors course, historique promo',
+    () async {
+      final rides = MobilityApiDataSource(api, session, _FixedGeocoder(), pollEvery: const Duration(milliseconds: 300));
+
+      final history = await rides.promoHistory();
+      expect(history.totalDiscount, greaterThanOrEqualTo(0));
+      expect(history.usages.every((u) => u.code.isNotEmpty), isTrue);
+
+      final id = await rides.requestRide(from, to, VehicleCategory.moto);
+      try {
+        final split = await rides.setPaymentSplit(id, 500);
+        expect(split.walletAmount, 500);
+        expect((await rides.setPaymentSplit(id, null)).isAutomatic, isTrue);
+
+        // La course n'a pas démarré : le back refuse le changement de destination, en le disant.
+        await expectLater(
+          rides.requestDestinationChange(id, to),
+          throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', isNotEmpty)),
+        );
+      } finally {
+        await rides.cancelRide(id);
+      }
+    },
+    skip: skip,
+  );
+
+  test(
     'temps réel : le WebSocket accepte le jeton de la session et refuse un faux',
     () async {
       Future<bool> connects(CurrentSession s) async {

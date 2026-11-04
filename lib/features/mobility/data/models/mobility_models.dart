@@ -1,4 +1,5 @@
 import '../../domain/entities/place.dart';
+import '../../domain/entities/promo_usage.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
@@ -61,6 +62,22 @@ abstract final class MobilityModels {
     );
   }
 
+  /// Réponse de `GET /promo-codes/usages` : usages du plus récent au plus ancien.
+  static PromoHistory promoHistory(Map<String, dynamic> j) {
+    final usages = [
+      for (final u in (j['usages'] as List<dynamic>? ?? const []).whereType<Map<String, dynamic>>())
+        PromoUsage(
+          code: u['code'] as String? ?? '',
+          discount: (u['discountAmount'] as num?)?.toInt() ?? 0,
+          appliedAt: DateTime.tryParse(u['appliedAt'] as String? ?? ''),
+        ),
+    ];
+    return PromoHistory(
+      usages: usages,
+      totalDiscount: (j['totalDiscount'] as num?)?.toInt() ?? usages.fold<int>(0, (a, u) => a + u.discount),
+    );
+  }
+
   static AvailablePromo? availablePromo(Map<String, dynamic> j) {
     final code = j['code'] as String?;
     if (code == null || code.isEmpty) return null;
@@ -118,6 +135,7 @@ abstract final class MobilityModels {
       waitingFee: waitingFee,
       pauseFee: pauseFee,
       policy: policy,
+      dropoffAddress: (j['dropoff'] as Map<String, dynamic>?)?['address'] as String?,
     );
   }
 

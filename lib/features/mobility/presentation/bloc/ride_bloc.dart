@@ -5,6 +5,7 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/usecase/usecase.dart';
 import '../../../../core/utils/load_status.dart';
 import '../../domain/entities/place.dart';
+import '../../domain/entities/promo_usage.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
@@ -25,6 +26,9 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     required WatchRide watchRide,
     required CancelRide cancelRide,
     required RateRide rateRide,
+    required ChangeRideDestination changeDestination,
+    required SetPaymentSplit setPaymentSplit,
+    required GetPromoHistory getPromoHistory,
   })  : _getCurrentPlace = getCurrentPlace,
         _getAvailablePromos = getAvailablePromos,
         _searchPlaces = searchPlaces,
@@ -34,6 +38,9 @@ class RideBloc extends Bloc<RideEvent, RideState> {
         _watchRide = watchRide,
         _cancelRide = cancelRide,
         _rateRide = rateRide,
+        _changeDestination = changeDestination,
+        _setPaymentSplit = setPaymentSplit,
+        _getPromoHistory = getPromoHistory,
         super(const RideState()) {
     on<RideStarted>(_onStarted);
     on<RideQueryChanged>(_onQueryChanged);
@@ -44,6 +51,9 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     on<RideBooked>(_onBooked);
     on<RideCancelled>(_onCancelled);
     on<RideRated>(_onRated);
+    on<RideDestinationChangeRequested>(_onDestinationChange);
+    on<RidePaymentSplitSet>(_onPaymentSplit);
+    on<RidePromoHistoryRequested>(_onPromoHistory);
   }
 
   final GetCurrentPlace _getCurrentPlace;
@@ -55,6 +65,9 @@ class RideBloc extends Bloc<RideEvent, RideState> {
   final WatchRide _watchRide;
   final CancelRide _cancelRide;
   final RateRide _rateRide;
+  final ChangeRideDestination _changeDestination;
+  final SetPaymentSplit _setPaymentSplit;
+  final GetPromoHistory _getPromoHistory;
 
   static const _typingPause = Duration(milliseconds: 350);
 
@@ -145,7 +158,7 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     // Le flux de la course alimente l'état jusqu'à la fin ou l'annulation.
     await emit.forEach<RideSnapshot>(
       _watchRide(rideId),
-      onData: (snap) => state.copyWith(ride: snap, policy: snap.policy),
+      onData: _onSnapshot,
       onError: (_, __) => state.copyWith(failure: const NetworkFailure()),
     );
   }
@@ -167,5 +180,60 @@ class RideBloc extends Bloc<RideEvent, RideState> {
         (_) => state.copyWith(ratingStatus: LoadStatus.ready),
       ),
     );
+  }
+
+  /// Met l'état à jour avec la course. Une destination demandée est considérée acceptée dès que l'adresse
+  /// d'arrivée de la course devient la sienne (le back n'expose pas la demande en attente).
+  RideState _onSnapshot(RideSnapshot snap) {
+    final pending = state.pendingDestination;
+    final accepted = pending != null && snap.dropoffAddress != null && _sameAddress(snap.dropoffAddress!, pending);
+    return state.copyWith(
+      ride: snap,
+      policy: snap.policy,
+      destination: accepted ? pending : null,
+      clearPendingDestination: accepted,
+      notice: accepted ? 'Le chauffeur a accepté la nouvelle destination.' : null,
+    );
+  }
+
+  static bool _sameAddress(String address, Place place) =>
+      address.trim().toLowerCase() == (place.address.isEmpty ? place.name : place.address).trim().toLowerCase();
+
+  Future<void> _onDestinationChange(RideDestinationChangeRequested e, Emitter<RideState> emit) async {
+    final ride = state.ride;
+    if (ride == null) return;
+    final result = await _changeDestination(DestinationChangeParams(rideId: ride.id, newDropoff: e.place));
+    emit(
+      result.fold(
+        (f) => state.copyWith(failure: f),
+        (_) => state.copyWith(
+          pendingDestination: e.place,
+          notice: 'Demande envoyée au chauffeur : il doit l’accepter.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onPaymentSplit(RidePaymentSplitSet e, Emitter<RideState> emit) async {
+    final ride = state.ride;
+    if (ride == null) return;
+    emit(state.copyWith(splitStatus: LoadStatus.loading));
+    final result = await _setPaymentSplit(PaymentSplitParams(rideId: ride.id, walletAmount: e.walletAmount));
+    emit(
+      result.fold(
+        (f) => state.copyWith(splitStatus: LoadStatus.failure, failure: f),
+        (split) => state.copyWith(
+          splitStatus: LoadStatus.ready,
+          paymentSplit: split,
+          notice: 'Répartition du paiement enregistrée.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onPromoHistory(RidePromoHistoryRequested e, Emitter<RideState> emit) async {
+    final result = await _getPromoHistory(const NoParams());
+    // L'historique est un plus : s'il échoue, la saisie d'un code reste possible.
+    emit(state.copyWith(promoHistory: result.valueOrNull));
   }
 }

@@ -2,6 +2,7 @@ import '../../../../core/error/failures.dart';
 import '../../../../core/usecase/usecase.dart';
 import '../../../../core/utils/result.dart';
 import '../entities/place.dart';
+import '../entities/promo_usage.dart';
 import '../entities/ride.dart';
 import '../entities/vehicle_offer.dart';
 import '../entities/waiting_policy.dart';
@@ -118,4 +119,51 @@ class RateRide implements UseCase<void, RideRating> {
     }
     return _repo.rateRide(rating);
   }
+}
+
+class DestinationChangeParams {
+  const DestinationChangeParams({required this.rideId, required this.newDropoff});
+  final String rideId;
+  final Place newDropoff;
+}
+
+class ChangeRideDestination implements UseCase<void, DestinationChangeParams> {
+  const ChangeRideDestination(this._repo);
+  final MobilityRepository _repo;
+
+  @override
+  Future<Result<void>> call(DestinationChangeParams p) async {
+    if (p.newDropoff.lat == null || p.newDropoff.lng == null) {
+      return const Err(ValidationFailure('Choisissez une adresse dans la liste.'));
+    }
+    return _repo.requestDestinationChange(p.rideId, p.newDropoff);
+  }
+}
+
+class PaymentSplitParams {
+  const PaymentSplitParams({required this.rideId, this.walletAmount});
+  final String rideId;
+
+  /// `null` : le serveur prend le maximum du portefeuille.
+  final int? walletAmount;
+}
+
+class SetPaymentSplit implements UseCase<PaymentSplit, PaymentSplitParams> {
+  const SetPaymentSplit(this._repo);
+  final MobilityRepository _repo;
+
+  @override
+  Future<Result<PaymentSplit>> call(PaymentSplitParams p) async {
+    final amount = p.walletAmount;
+    if (amount != null && amount < 0) return const Err(ValidationFailure('Le montant ne peut pas être négatif.'));
+    return _repo.setPaymentSplit(p.rideId, amount);
+  }
+}
+
+class GetPromoHistory implements UseCase<PromoHistory, NoParams> {
+  const GetPromoHistory(this._repo);
+  final MobilityRepository _repo;
+
+  @override
+  Future<Result<PromoHistory>> call(NoParams _) => _repo.promoHistory();
 }

@@ -68,6 +68,7 @@ class RideSnapshot extends Equatable {
     this.policy,
     this.serverTotal,
     this.securityCode,
+    this.dropoffAddress,
   });
 
   final String id;
@@ -98,6 +99,9 @@ class RideSnapshot extends Equatable {
   /// Code à donner au chauffeur avant le départ. `null` tant que le back ne le fournit pas : rien n'est affiché.
   final String? securityCode;
 
+  /// Adresse d'arrivée actuelle de la course : elle change quand le chauffeur accepte une nouvelle destination.
+  final String? dropoffAddress;
+
   int get total => serverTotal ?? fare + waitingFee + pauseFee;
 
   RideSnapshot copyWith({
@@ -125,6 +129,7 @@ class RideSnapshot extends Equatable {
       policy: policy,
       serverTotal: serverTotal,
       securityCode: securityCode,
+      dropoffAddress: dropoffAddress,
     );
   }
 
@@ -144,6 +149,7 @@ class RideSnapshot extends Equatable {
         policy,
         serverTotal,
         securityCode,
+        dropoffAddress,
       ];
 }
 
@@ -161,4 +167,20 @@ class RideRating extends Equatable {
 
   @override
   List<Object?> get props => [rideId, stars, tags, tip];
+}
+
+/// Répartition du paiement d'une course entre portefeuille et espèces.
+///
+/// `walletAmount == null` : mode automatique (le maximum du portefeuille, le reste en espèces).
+class PaymentSplit extends Equatable {
+  const PaymentSplit({this.walletAmount, this.cashAmount = 0});
+  final int? walletAmount;
+
+  /// Part estimée à régler en espèces, donnée par le serveur.
+  final int cashAmount;
+
+  bool get isAutomatic => walletAmount == null;
+
+  @override
+  List<Object?> get props => [walletAmount, cashAmount];
 }

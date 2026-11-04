@@ -6,6 +6,7 @@ import '../../../../core/location/place_geocoder.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/realtime_signals.dart';
 import '../../domain/entities/place.dart';
+import '../../domain/entities/promo_usage.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
@@ -20,6 +21,9 @@ abstract interface class MobilityRemoteDataSource {
   Stream<RideSnapshot> watchRide(String rideId);
   Future<void> cancelRide(String rideId);
   Future<void> rateRide(RideRating rating);
+  Future<void> requestDestinationChange(String rideId, Place newDropoff);
+  Future<PaymentSplit> setPaymentSplit(String rideId, int? walletAmount);
+  Future<PromoHistory> promoHistory();
 }
 
 /// Routes `/api/passenger/rides/*` du back wami-co.
@@ -230,5 +234,32 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
         if (r.tip > 0) 'tip': r.tip,
       },
     );
+  }
+
+  @override
+  Future<void> requestDestinationChange(String rideId, Place newDropoff) async {
+    await _api.post(
+      '$_base/$rideId/destination-change',
+      body: {
+        'newDropoffLat': newDropoff.lat,
+        'newDropoffLng': newDropoff.lng,
+        'newDropoffAddress': newDropoff.address.isEmpty ? newDropoff.name : newDropoff.address,
+      },
+    );
+  }
+
+  @override
+  Future<PaymentSplit> setPaymentSplit(String rideId, int? walletAmount) async {
+    final json = await _api.patch('$_base/$rideId/payment-split', body: {'walletAmount': walletAmount});
+    return PaymentSplit(
+      walletAmount: (json['requestedWalletAmount'] as num?)?.toInt(),
+      cashAmount: (json['estimatedCashAmount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  @override
+  Future<PromoHistory> promoHistory() async {
+    final json = await _api.get('/api/passenger/promo-codes/usages');
+    return MobilityModels.promoHistory(json);
   }
 }

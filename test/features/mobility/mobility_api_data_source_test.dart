@@ -453,5 +453,81 @@ void main() {
         'comment': 'Ponctuel, Conduite sûre',
       });
     });
+
+    test('changement de destination : envoie les coordonnées et l’adresse', () async {
+      server.on('POST /api/passenger/rides/r1/destination-change', {
+        'success': true,
+        'data': {'rideId': 'r1', 'message': 'Demande envoyée au chauffeur.'},
+      });
+      await rides.requestDestinationChange('r1', _to);
+      expect(server.last('POST /api/passenger/rides/r1/destination-change')!.data, {
+        'newDropoffLat': 6.37,
+        'newDropoffLng': 2.43,
+        'newDropoffAddress': 'Cotonou',
+      });
+    });
+
+    test('changement de destination refusé par le back : le motif est remonté', () async {
+      server.on(
+        'POST /api/passenger/rides/r1/destination-change',
+        {'success': false, 'error': 'Une demande est déjà en attente.'},
+        status: 400,
+      );
+      await expectLater(
+        rides.requestDestinationChange('r1', _to),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('déjà en attente'))),
+      );
+    });
+
+    test('répartition du paiement : montant envoyé, part en espèces lue', () async {
+      server.on('PATCH /api/passenger/rides/r1/payment-split', {
+        'success': true,
+        'data': {'rideId': 'r1', 'requestedWalletAmount': 800, 'estimatedCashAmount': 580},
+      });
+      final split = await rides.setPaymentSplit('r1', 800);
+      expect(server.last('PATCH /api/passenger/rides/r1/payment-split')!.data, {'walletAmount': 800});
+      expect(split, const PaymentSplit(walletAmount: 800, cashAmount: 580));
+    });
+
+    test('répartition automatique : walletAmount null', () async {
+      server.on('PATCH /api/passenger/rides/r1/payment-split', {
+        'success': true,
+        'data': {'rideId': 'r1', 'requestedWalletAmount': null, 'estimatedCashAmount': 0},
+      });
+      final split = await rides.setPaymentSplit('r1', null);
+      expect(server.last('PATCH /api/passenger/rides/r1/payment-split')!.data, {'walletAmount': null});
+      expect(split.isAutomatic, isTrue);
+    });
+
+    test('historique des codes promo : usages et remise totale', () async {
+      server.on('GET /api/passenger/promo-codes/usages', {
+        'success': true,
+        'data': {
+          'usages': [
+            {'code': 'BIENVENUE', 'discountAmount': 500, 'appliedAt': '2026-10-02T10:00:00.000Z', 'rideId': 'r0'},
+            {'code': 'WAMI10', 'discountAmount': 250, 'appliedAt': '2026-09-01T08:00:00.000Z', 'rideId': null},
+          ],
+          'total': 2,
+          'totalDiscount': 750,
+        },
+      });
+      final history = await rides.promoHistory();
+      expect(history.totalDiscount, 750);
+      expect(history.usages.map((u) => u.code), ['BIENVENUE', 'WAMI10']);
+      expect(history.usages.first.discount, 500);
+      expect(history.usages.first.appliedAt, DateTime.utc(2026, 10, 2, 10));
+    });
+
+    test('la course lit l’adresse d’arrivée du back', () {
+      final snap = MobilityModels.snapshot(
+        _ride(
+          'IN_PROGRESS',
+          extra: {
+            'dropoff': {'latitude': 6.37, 'longitude': 2.39, 'address': 'Godomey'},
+          },
+        ),
+      );
+      expect(snap.dropoffAddress, 'Godomey');
+    });
   });
 }

@@ -14,6 +14,7 @@ import '../../../../core/widgets/wami_live.dart';
 import '../../../../core/widgets/wami_scaffold.dart';
 import '../../domain/entities/ride.dart';
 import '../bloc/ride_bloc.dart';
+import '../widgets/ride_inflight_sheets.dart';
 import '../widgets/ride_widgets.dart';
 
 /// Étape 3 : suivi en temps réel. Le panneau change selon le statut de la course.
@@ -27,53 +28,57 @@ class RideTrackingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      child: Scaffold(
-        body: BlocConsumer<RideBloc, RideState>(
-          listenWhen: (a, b) => a.ride?.status != b.ride?.status,
-          listener: (context, state) {
-            final status = state.ride?.status;
-            if (status == RideStatus.completed) context.pushReplacement(Routes.rideRate);
-            if (status == RideStatus.cancelled || status == RideStatus.noDriver) {
-              showWamiMessage(
-                context,
-                status == RideStatus.noDriver
-                    ? 'Aucun chauffeur disponible pour le moment. Réessayez dans quelques minutes.'
-                    : 'Course annulée.',
-              );
-              context.go(Routes.home);
-            }
-          },
-          builder: (context, state) {
-            final ride = state.ride;
-            if (ride == null) return const WamiLoading();
-            return Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: 480,
-                  child: RouteMapView(progress: ride.status.isOnTrip ? ride.tripProgress : null),
-                ),
-                SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: StatusPill(live: true, child: Text(_headline(ride))),
+      child: BlocListener<RideBloc, RideState>(
+        listenWhen: (a, b) => b.notice != null || b.failure != null,
+        listener: (context, state) => showWamiMessage(context, state.notice ?? state.failure!.message),
+        child: Scaffold(
+          body: BlocConsumer<RideBloc, RideState>(
+            listenWhen: (a, b) => a.ride?.status != b.ride?.status,
+            listener: (context, state) {
+              final status = state.ride?.status;
+              if (status == RideStatus.completed) context.pushReplacement(Routes.rideRate);
+              if (status == RideStatus.cancelled || status == RideStatus.noDriver) {
+                showWamiMessage(
+                  context,
+                  status == RideStatus.noDriver
+                      ? 'Aucun chauffeur disponible pour le moment. Réessayez dans quelques minutes.'
+                      : 'Course annulée.',
+                );
+                context.go(Routes.home);
+              }
+            },
+            builder: (context, state) {
+              final ride = state.ride;
+              if (ride == null) return const WamiLoading();
+              return Stack(
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: 480,
+                    child: RouteMapView(progress: ride.status.isOnTrip ? ride.tripProgress : null),
                   ),
-                ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: AnimatedSwitcher(
-                    duration: WamiMotion.slow,
-                    child: WamiSheet(
-                      key: ValueKey(ride.status),
-                      children: _panel(context, state, ride),
+                  SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: StatusPill(live: true, child: Text(_headline(ride))),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: AnimatedSwitcher(
+                      duration: WamiMotion.slow,
+                      child: WamiSheet(
+                        key: ValueKey(ride.status),
+                        children: _panel(context, state, ride),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -125,6 +130,10 @@ class RideTrackingPage extends StatelessWidget {
               onShare: () => soon('Partage du trajet'),
             ),
           TextButton(
+            onPressed: () => showPaymentSplitSheet(context),
+            child: const Text('Répartition du paiement'),
+          ),
+          TextButton(
             onPressed: () => bloc.add(const RideCancelled()),
             child: const Text('Annuler la course'),
           ),
@@ -143,7 +152,7 @@ class RideTrackingPage extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        state.destination?.name ?? 'Destination',
+                        ride.dropoffAddress ?? state.destination?.name ?? 'Destination',
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                     ),
@@ -169,8 +178,34 @@ class RideTrackingPage extends StatelessWidget {
                   ],
                 ),
                 Text(_extras(ride), style: Theme.of(context).textTheme.bodySmall),
+                if (state.pendingDestination != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Nouvelle destination demandée : ${state.pendingDestination!.name} (en attente du chauffeur)',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ],
             ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: WamiGhostButton(
+                  label: 'Changer la destination',
+                  icon: Icons.edit_location_alt_outlined,
+                  onPressed: () => showDestinationChangeSheet(context),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: WamiGhostButton(
+                  label: 'Paiement',
+                  icon: Icons.account_balance_wallet_outlined,
+                  onPressed: () => showPaymentSplitSheet(context),
+                ),
+              ),
+            ],
           ),
           // Plus d'appel ni de message : seulement partage et urgence.
           Row(

@@ -28,6 +28,9 @@ void main() {
       watchRide: WatchRide(repo),
       cancelRide: CancelRide(repo),
       rateRide: RateRide(repo),
+      changeDestination: ChangeRideDestination(repo),
+      setPaymentSplit: SetPaymentSplit(repo),
+      getPromoHistory: GetPromoHistory(repo),
     );
   });
 
@@ -92,5 +95,40 @@ void main() {
     );
     expect(billedWaiting, isTrue);
     expect(bloc.state.ride!.total, greaterThan(bloc.state.ride!.fare));
+  });
+
+  test('historique des codes promo chargé à la demande', () async {
+    bloc.add(const RidePromoHistoryRequested());
+    final s = await bloc.stream.firstWhere((s) => s.promoHistory != null);
+    expect(s.promoHistory!.usages, isNotEmpty);
+    expect(s.promoHistory!.totalDiscount, greaterThan(0));
+  });
+
+  test('en course : destination demandée puis répartition du paiement enregistrée', () async {
+    bloc.add(const RideDestinationChosen(Place(id: 'x', name: 'Dantokpa', address: 'Cotonou')));
+    await bloc.stream.firstWhere((s) => s.offers.isNotEmpty);
+    bloc.add(const RideBooked());
+    await bloc.stream.firstWhere((s) => s.ride != null);
+
+    const godomey = Place(id: 'g', name: 'Godomey', address: 'Godomey', lat: 6.38, lng: 2.34);
+    bloc.add(const RideDestinationChangeRequested(godomey));
+    final asked = await bloc.stream.firstWhere((s) => s.pendingDestination != null);
+    expect(asked.pendingDestination, godomey);
+
+    bloc.add(const RidePaymentSplitSet(800));
+    final saved = await bloc.stream.firstWhere((s) => s.paymentSplit != null);
+    expect(saved.paymentSplit!.walletAmount, 800);
+  });
+
+  test('destination sans coordonnées et montant négatif sont refusés avant tout appel', () async {
+    const sans = Place(id: 'm', name: 'Point', address: '[Adresse]');
+    const config = AppConfig(apiBaseUrl: '', useFakeBackend: true, fakeLatency: Duration.zero);
+    final repo =
+        MobilityRepositoryImpl(MobilityFakeDataSource(const FakeBackend(config)), const FixedLocationService());
+
+    final destination = await ChangeRideDestination(repo)(const DestinationChangeParams(rideId: 'r', newDropoff: sans));
+    final split = await SetPaymentSplit(repo)(const PaymentSplitParams(rideId: 'r', walletAmount: -1));
+    expect(destination.isOk, isFalse);
+    expect(split.isOk, isFalse);
   });
 }
