@@ -9,6 +9,33 @@ class SavedPlace extends Equatable {
   List<Object?> get props => [label, address];
 }
 
+enum Gender {
+  female('FEMALE', 'Femme'),
+  male('MALE', 'Homme');
+
+  const Gender(this.api, this.label);
+  final String api;
+  final String label;
+
+  static Gender? fromApi(String? s) => values.where((g) => g.api == s).firstOrNull;
+}
+
+/// Adresse de résidence du passager (ville et quartier obligatoires).
+class PostalAddress extends Equatable {
+  const PostalAddress({required this.city, required this.quarter, this.street, this.landmark});
+  final String city;
+  final String quarter;
+  final String? street;
+  final String? landmark;
+
+  String get summary => [street, quarter, city].where((s) => s != null && s.trim().isNotEmpty).join(', ');
+
+  @override
+  List<Object?> get props => [city, quarter, street, landmark];
+}
+
+enum VerificationKind { email, phone }
+
 class UserProfile extends Equatable {
   const UserProfile({
     required this.fullName,
@@ -18,6 +45,10 @@ class UserProfile extends Equatable {
     required this.rating,
     this.savedPlaces = const [],
     this.emergencyContact,
+    this.gender,
+    this.address,
+    this.emailVerified = false,
+    this.phoneVerified = true,
   });
 
   final String fullName;
@@ -29,6 +60,10 @@ class UserProfile extends Equatable {
   final double rating;
   final List<SavedPlace> savedPlaces;
   final String? emergencyContact;
+  final Gender? gender;
+  final PostalAddress? address;
+  final bool emailVerified;
+  final bool phoneVerified;
 
   UserProfile copyWith({String? fullName, String? phone, String? email}) => UserProfile(
         fullName: fullName ?? this.fullName,
@@ -38,10 +73,26 @@ class UserProfile extends Equatable {
         rating: rating,
         savedPlaces: savedPlaces,
         emergencyContact: emergencyContact,
+        gender: gender,
+        address: address,
+        emailVerified: emailVerified,
+        phoneVerified: phoneVerified,
       );
 
   @override
-  List<Object?> get props => [fullName, phone, email, tier, rating, savedPlaces, emergencyContact];
+  List<Object?> get props => [
+        fullName,
+        phone,
+        email,
+        tier,
+        rating,
+        savedPlaces,
+        emergencyContact,
+        gender,
+        address,
+        emailVerified,
+        phoneVerified,
+      ];
 }
 
 class FaqItem extends Equatable {

@@ -16,6 +16,7 @@ import '../../../../core/widgets/wami_selectors.dart';
 import '../../../../core/widgets/wami_text_field.dart';
 import '../../domain/entities/app_settings.dart';
 import '../cubit/profile_cubit.dart';
+import 'profile_extras.dart';
 import '../cubit/security_cubit.dart';
 import '../cubit/settings_cubit.dart';
 import '../cubit/support_cubit.dart';
@@ -47,10 +48,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     return BlocConsumer<ProfileCubit, ProfileState>(
-      listenWhen: (a, b) => a.saveStatus != b.saveStatus,
+      listenWhen: (a, b) => a.saveStatus != b.saveStatus || b.notice != null || b.failure != null,
       listener: (context, state) {
         if (state.saveStatus == LoadStatus.ready) showWamiMessage(context, 'Profil enregistré');
-        if (state.saveStatus == LoadStatus.failure) showWamiMessage(context, state.failure!.message);
+        final message = state.notice ?? state.failure?.message;
+        if (message != null) showWamiMessage(context, message);
       },
       builder: (context, state) {
         final p = state.profile;
@@ -92,6 +94,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
                     ),
+                    VerificationBanners(profile: p),
+                    const SectionLabel('Civilité'),
+                    GenderPicker(gender: p.gender),
+                    const SectionLabel('Adresse'),
+                    AddressCard(address: p.address),
                     const SectionLabel('Adresses favorites'),
                     GlassGroup(
                       children: [

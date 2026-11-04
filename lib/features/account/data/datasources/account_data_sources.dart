@@ -13,6 +13,10 @@ abstract interface class AccountRemoteDataSource {
   Future<void> requestDataExport();
   Future<void> changePassword(String currentPassword, String newPassword);
   Future<void> deleteAccount(String password);
+  Future<UserProfile> setGender(Gender gender);
+  Future<UserProfile> setAddress(PostalAddress address);
+  Future<void> resendVerification();
+  Future<UserProfile> verify(VerificationKind kind, String code);
 }
 
 /// Préférences locales à l'appareil.
@@ -67,6 +71,10 @@ class AccountApiDataSource implements AccountRemoteDataSource {
   List<SavedPlace> _savedPlaces = const [];
   String? _emergencyContact;
 
+  // Le profil du back ne renvoie ni l'e-mail ni l'adresse : on garde ce qui a été saisi pendant la session.
+  String? _email;
+  PostalAddress? _address;
+
   String get _userId => _session.value!.userId;
 
   @override
@@ -75,12 +83,29 @@ class AccountApiDataSource implements AccountRemoteDataSource {
     return UserProfile(
       fullName: '${j['firstName'] ?? ''} ${j['lastName'] ?? ''}'.trim(),
       phone: j['phoneNumber'] as String? ?? '',
-      email: j['email'] as String? ?? '',
+      email: j['email'] as String? ?? _email ?? '',
       // Pas de programme de fidélité ni de note passager côté back : rien n'est affiché.
       tier: '',
       rating: 0,
       savedPlaces: _savedPlaces,
       emergencyContact: _emergencyContact,
+      gender: Gender.fromApi(j['gender'] as String?),
+      address: _addressOf(j['address']) ?? _address,
+      emailVerified: j['isEmailVerified'] as bool? ?? false,
+      phoneVerified: j['isPhoneVerified'] as bool? ?? true,
+    );
+  }
+
+  static PostalAddress? _addressOf(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final city = raw['city'] as String?;
+    final quarter = raw['quarter'] as String?;
+    if (city == null || quarter == null) return null;
+    return PostalAddress(
+      city: city,
+      quarter: quarter,
+      street: raw['street'] as String?,
+      landmark: raw['landmark'] as String?,
     );
   }
 
@@ -96,7 +121,8 @@ class AccountApiDataSource implements AccountRemoteDataSource {
     }
     final email = p.email.trim();
     if (email.isNotEmpty && email != current.email) {
-      await _api.patch('/api/users/$_userId/email', body: {'newEmail': email});
+      await _saveEmail(email, hadEmail: current.email.isNotEmpty);
+      _email = email;
     }
     final phone = BeninPhone.toInternational(p.phone) ?? p.phone.trim();
     if (phone.isNotEmpty && phone != current.phone) {
@@ -105,6 +131,68 @@ class AccountApiDataSource implements AccountRemoteDataSource {
     _savedPlaces = p.savedPlaces;
     _emergencyContact = p.emergencyContact;
     return profile();
+  }
+
+  /// Ajout si le compte n'a pas encore d'e-mail, modification sinon. Le profil du back ne renvoie pas l'e-mail :
+  /// quand on l'ignore, on tente l'ajout puis, si le back répond qu'il y en a déjà un, la modification.
+  Future<void> _saveEmail(String email, {required bool hadEmail}) async {
+    if (!hadEmail) {
+      try {
+        await _api.post('/api/users/$_userId/add-email', body: {'email': email});
+        return;
+      } on BusinessRuleException catch (e) {
+        if (!(e.message ?? '').toLowerCase().contains('already has an email')) rethrow;
+      }
+    }
+    await _api.patch('/api/users/$_userId/email', body: {'newEmail': email});
+  }
+
+  @override
+  Future<UserProfile> setGender(Gender gender) async {
+    await _api.patch('/api/users/$_userId/gender', body: {'gender': gender.api});
+    return profile();
+  }
+
+  @override
+  Future<UserProfile> setAddress(PostalAddress address) async {
+    await _api.patch(
+      '/api/users/$_userId/address',
+      body: {
+        'address': {
+          'city': address.city.trim(),
+          'quarter': address.quarter.trim(),
+          if (address.street?.trim().isNotEmpty ?? false) 'street': address.street!.trim(),
+          if (address.landmark?.trim().isNotEmpty ?? false) 'landmark': address.landmark!.trim(),
+        },
+      },
+    );
+    _address = address;
+    return profile();
+  }
+
+  /// Le back renvoie les deux codes d'un coup (SMS et e-mail).
+  @override
+  Future<void> resendVerification() async {
+    await _api.post('/api/users/$_userId/resend-verification', body: const <String, dynamic>{});
+  }
+
+  @override
+  Future<UserProfile> verify(VerificationKind kind, String code) async {
+    final route = kind == VerificationKind.email ? 'verify-email' : 'verify-phone';
+    try {
+      await _api.post('/api/users/$_userId/$route', body: {'code': code});
+    } on BusinessRuleException catch (e) {
+      throw _frenchVerifyError(e);
+    }
+    return profile();
+  }
+
+  BusinessRuleException _frenchVerifyError(BusinessRuleException e) {
+    final m = (e.message ?? '').toLowerCase();
+    if (m.contains('invalide') || m.contains('invalid') || m.contains('expir')) {
+      return const BusinessRuleException('rejected', 'Code invalide ou expiré. Demandez un nouveau code.');
+    }
+    return e;
   }
 
   // Pas de FAQ ni d'export de données côté back : contenus du mobile.
@@ -202,7 +290,13 @@ class AccountFakeDataSource implements AccountRemoteDataSource {
   @override
   Future<UserProfile> updateProfile(UserProfile p) async {
     await _fake.latency();
-    return _me = p;
+    // Un nouvel e-mail est à vérifier à nouveau.
+    return _me = _with(
+      fullName: p.fullName,
+      phone: p.phone,
+      email: p.email,
+      emailVerified: p.email == _me.email ? _me.emailVerified : false,
+    );
   }
 
   @override
@@ -222,4 +316,55 @@ class AccountFakeDataSource implements AccountRemoteDataSource {
     await _fake.latency();
     _session.requestLogout();
   }
+
+  @override
+  Future<UserProfile> setGender(Gender gender) async {
+    await _fake.latency(0.4);
+    return _me = _with(gender: gender);
+  }
+
+  @override
+  Future<UserProfile> setAddress(PostalAddress address) async {
+    await _fake.latency(0.4);
+    return _me = _with(address: address);
+  }
+
+  @override
+  Future<void> resendVerification() => _fake.latency(0.4);
+
+  /// Code de démonstration : 123456.
+  @override
+  Future<UserProfile> verify(VerificationKind kind, String code) async {
+    await _fake.latency(0.4);
+    if (code != '123456') {
+      throw const BusinessRuleException('rejected', 'Code invalide ou expiré. Demandez un nouveau code.');
+    }
+    return _me = _with(
+      emailVerified: kind == VerificationKind.email ? true : null,
+      phoneVerified: kind == VerificationKind.phone ? true : null,
+    );
+  }
+
+  UserProfile _with({
+    String? fullName,
+    String? phone,
+    String? email,
+    Gender? gender,
+    PostalAddress? address,
+    bool? emailVerified,
+    bool? phoneVerified,
+  }) =>
+      UserProfile(
+        fullName: fullName ?? _me.fullName,
+        phone: phone ?? _me.phone,
+        email: email ?? _me.email,
+        tier: _me.tier,
+        rating: _me.rating,
+        savedPlaces: _me.savedPlaces,
+        emergencyContact: _me.emergencyContact,
+        gender: gender ?? _me.gender,
+        address: address ?? _me.address,
+        emailVerified: emailVerified ?? _me.emailVerified,
+        phoneVerified: phoneVerified ?? _me.phoneVerified,
+      );
 }

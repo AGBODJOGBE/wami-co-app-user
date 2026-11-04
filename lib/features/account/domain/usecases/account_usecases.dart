@@ -94,3 +94,51 @@ class RequestDataExport implements UseCase<void, NoParams> {
   @override
   Future<Result<void>> call(NoParams _) => _repo.requestDataExport();
 }
+
+class SetGender implements UseCase<UserProfile, Gender> {
+  const SetGender(this._repo);
+  final AccountRepository _repo;
+
+  @override
+  Future<Result<UserProfile>> call(Gender gender) => _repo.setGender(gender);
+}
+
+class SetAddress implements UseCase<UserProfile, PostalAddress> {
+  const SetAddress(this._repo);
+  final AccountRepository _repo;
+
+  @override
+  Future<Result<UserProfile>> call(PostalAddress a) async {
+    if (a.city.trim().isEmpty || a.quarter.trim().isEmpty) {
+      return const Err(ValidationFailure('Indiquez au moins la ville et le quartier.'));
+    }
+    return _repo.setAddress(a);
+  }
+}
+
+class ResendVerification implements UseCase<void, NoParams> {
+  const ResendVerification(this._repo);
+  final AccountRepository _repo;
+
+  @override
+  Future<Result<void>> call(NoParams _) => _repo.resendVerification();
+}
+
+class VerifyParams {
+  const VerifyParams(this.kind, this.code);
+  final VerificationKind kind;
+  final String code;
+}
+
+class VerifyContact implements UseCase<UserProfile, VerifyParams> {
+  const VerifyContact(this._repo);
+  final AccountRepository _repo;
+
+  static final _digits = RegExp(r'^\d{6}$');
+
+  @override
+  Future<Result<UserProfile>> call(VerifyParams p) async {
+    if (!_digits.hasMatch(p.code.trim())) return const Err(ValidationFailure('Le code compte 6 chiffres.'));
+    return _repo.verify(p.kind, p.code.trim());
+  }
+}

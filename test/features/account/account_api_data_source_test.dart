@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/auth/auth_session.dart';
 import 'package:wami/core/auth/current_session.dart';
+import 'package:wami/core/error/exceptions.dart';
 import 'package:wami/features/account/data/datasources/account_data_sources.dart';
 import 'package:wami/features/account/domain/entities/user_profile.dart';
 
@@ -52,6 +53,11 @@ void main() {
     server
       ..on('GET /api/passengers/profile', _profile())
       ..on('PATCH /api/users/u1/name', {'success': true})
+      ..on(
+        'POST /api/users/u1/add-email',
+        {'success': false, 'error': 'User already has an email. Use updateEmail to change it.'},
+        status: 409,
+      )
       ..on('PATCH /api/users/u1/email', {'success': true});
     final current = await account.profile();
 
@@ -87,5 +93,88 @@ void main() {
     expect(saved.savedPlaces.single.label, 'Maison');
     expect(saved.emergencyContact, 'Koffi');
     expect(server.count('PATCH /api/users/u1/name'), 0);
+  });
+
+  group('e-mail, civilité, adresse, vérification', () {
+    Map<String, dynamic> profile({String? gender, bool emailVerified = false, bool phoneVerified = true}) => {
+          'success': true,
+          'data': {
+            'firstName': 'Awa',
+            'lastName': 'Dossou',
+            'phoneNumber': '+2290197123456',
+            if (gender != null) 'gender': gender,
+            'isEmailVerified': emailVerified,
+            'isPhoneVerified': phoneVerified,
+          },
+        };
+
+    test('profil : civilité et statuts de vérification lus', () async {
+      server.on('GET /api/passengers/profile', profile(gender: 'FEMALE', phoneVerified: false));
+      final p = await account.profile();
+      expect(p.gender, Gender.female);
+      expect(p.phoneVerified, isFalse);
+      expect(p.emailVerified, isFalse);
+    });
+
+    test('nouvel e-mail : ajout, vérifié à part (le profil du back ne renvoie pas l’e-mail)', () async {
+      server
+        ..on('GET /api/passengers/profile', profile())
+        ..on('POST /api/users/u1/add-email', {
+          'success': true,
+          'data': {'email': 'awa@exemple.bj', 'isEmailVerified': false},
+        });
+      final current = await account.profile();
+      final saved = await account.updateProfile(current.copyWith(email: 'awa@exemple.bj'));
+      expect(server.last('POST /api/users/u1/add-email')!.data, {'email': 'awa@exemple.bj'});
+      expect(server.count('PATCH /api/users/u1/email'), 0);
+      expect(saved.email, 'awa@exemple.bj', reason: 'gardé pour la session puisque le back ne le renvoie pas');
+    });
+
+    test('civilité envoyée puis profil relu', () async {
+      server
+        ..on('GET /api/passengers/profile', profile(gender: 'MALE'))
+        ..on('PATCH /api/users/u1/gender', {'success': true});
+      final p = await account.setGender(Gender.male);
+      expect(server.last('PATCH /api/users/u1/gender')!.data, {'gender': 'MALE'});
+      expect(p.gender, Gender.male);
+    });
+
+    test('adresse : champs vides non envoyés, adresse gardée pour la session', () async {
+      server
+        ..on('GET /api/passengers/profile', profile())
+        ..on('PATCH /api/users/u1/address', {'success': true});
+      final p = await account.setAddress(const PostalAddress(city: 'Cotonou', quarter: 'Akpakpa', street: ' '));
+      expect(server.last('PATCH /api/users/u1/address')!.data, {
+        'address': {'city': 'Cotonou', 'quarter': 'Akpakpa'},
+      });
+      expect(p.address?.summary, 'Akpakpa, Cotonou');
+    });
+
+    test('vérification : bonne route selon le contact, code refusé en français', () async {
+      server
+        ..on('GET /api/passengers/profile', profile(emailVerified: true))
+        ..on('POST /api/users/u1/verify-email', {'success': true})
+        ..on(
+          'POST /api/users/u1/verify-phone',
+          {'success': false, 'error': 'Code de vérification invalide ou expiré.'},
+          status: 400,
+        );
+      final p = await account.verify(VerificationKind.email, '123456');
+      expect(server.last('POST /api/users/u1/verify-email')!.data, {'code': '123456'});
+      expect(p.emailVerified, isTrue);
+      await expectLater(
+        account.verify(VerificationKind.phone, '000000'),
+        throwsA(
+          isA<BusinessRuleException>()
+              .having((e) => e.message, 'message', 'Code invalide ou expiré. Demandez un nouveau code.'),
+        ),
+      );
+    });
+
+    test('renvoi des codes', () async {
+      server.on('POST /api/users/u1/resend-verification', {'success': true});
+      await account.resendVerification();
+      expect(server.count('POST /api/users/u1/resend-verification'), 1);
+    });
   });
 }

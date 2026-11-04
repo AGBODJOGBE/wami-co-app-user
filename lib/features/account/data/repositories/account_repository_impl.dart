@@ -34,4 +34,16 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Future<Result<void>> deleteAccount(String password) => guard(() => _remote.deleteAccount(password));
+
+  @override
+  Future<Result<UserProfile>> setGender(Gender gender) => guard(() => _remote.setGender(gender));
+
+  @override
+  Future<Result<UserProfile>> setAddress(PostalAddress address) => guard(() => _remote.setAddress(address));
+
+  @override
+  Future<Result<void>> resendVerification() => guard(_remote.resendVerification);
+
+  @override
+  Future<Result<UserProfile>> verify(VerificationKind kind, String code) => guard(() => _remote.verify(kind, code));
 }
