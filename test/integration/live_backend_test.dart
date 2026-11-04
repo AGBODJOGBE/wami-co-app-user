@@ -90,6 +90,17 @@ void main() {
   );
 
   test(
+    'activités : courses et livraisons lues sur le back',
+    () async {
+      final list = await ActivityApiDataSource(api).fetch();
+      expect(list, isNotEmpty);
+      expect(list.every((a) => a.title.isNotEmpty && a.id.isNotEmpty), isTrue);
+      expect(list.where((a) => a.service.name == 'mobility'), isNotEmpty);
+    },
+    skip: skip,
+  );
+
+  test(
     'portefeuille : solde et historique',
     () async {
       final overview = await WalletApiDataSource(api, session).overview();
@@ -160,7 +171,7 @@ void main() {
         await api.delete('/api/passenger/delivery/$id');
       }
       final list = await ActivityApiDataSource(api).fetch();
-      expect(list.first.status.name, 'cancelled');
+      expect(list.where((a) => a.service.name == 'delivery').first.status.name, 'cancelled');
     },
     skip: skip,
   );

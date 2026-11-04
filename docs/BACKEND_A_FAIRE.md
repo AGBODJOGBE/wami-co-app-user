@@ -32,11 +32,14 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 - `npm run dev` et `npm run dev:worker` appellent `cross-env`, absent de `package.json` : `sh: cross-env: not found` après `npm ci`.
 - **À faire** : `npm i -D cross-env`.
 
-### 5. L'historique des courses du passager n'est branché sur aucune route
-- **Constat** : `GET /api/passenger/rides` répond `404 Route not found`. `GetRideHistoryController` et `GetRideHistoryUseCase` existent
-  (avec une option `status`) mais `rideRoutes.ts` ne les monte pas.
-- **Effet** : l'écran Activités n'affiche que les livraisons ; aucune course passée n'apparaît.
-- **À faire** : `GET /api/passenger/rides?status=` → `{ success, data: { rides[], total } }` (le contrôleur est prêt).
+### 5. L'historique des courses plante sur les anciens numéros de course
+- **Constat** : `GET /api/passengers/rides` (au pluriel) répond `500 "Invalid ride number format: FY-RD-…"` dès qu'une course
+  porte un ancien numéro `FY-RD-…`. Le renommage ForYou → Wami n'accepte plus que `WM-RD-…`. Avec un filtre
+  (`?status=COMPLETED`), la route répond 200 : seules les courses non converties posent problème.
+- **À faire** : convertir les numéros existants (`FY-` → `WM-`, y compris les livraisons `FY-B2C-`) ou accepter les deux préfixes
+  à la lecture. Sans vraies données, rien à faire.
+- **Autre écart** : le Swagger documente `page` et `limit`, mais le contrôleur ne lit que `status` et renvoie tout l'historique.
+  L'app n'a pas de pagination pour l'instant.
 
 ### 6. Changement de numéro de téléphone sans vérification
 - `PATCH /api/users/:id/phone { newPhoneNumber }` modifie le numéro de connexion sans code SMS sur le nouveau numéro.
