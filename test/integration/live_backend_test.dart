@@ -15,6 +15,7 @@ import 'package:wami/core/network/api_client.dart';
 import 'package:wami/core/network/auth_interceptor.dart';
 import 'package:wami/core/network/realtime_signals.dart';
 import 'package:wami/features/account/data/datasources/account_data_sources.dart';
+import 'package:wami/features/account/domain/entities/user_profile.dart';
 import 'package:wami/features/activities/data/activity_repository_impl.dart';
 import 'package:wami/features/app_update/data/datasources/app_update_data_sources.dart';
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
@@ -414,6 +415,36 @@ void main() {
             .withdraw(const WithdrawRequest(amount: 1000, method: WithdrawMethod.mobileMoney, phone: '+2290197123456')),
         throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('déjà en cours'))),
       );
+    },
+    skip: skip,
+  );
+
+  test(
+    'profil : civilité, adresse, e-mail (ajout puis modification), code de vérification refusé en français',
+    () async {
+      final account = AccountApiDataSource(api, session);
+      final before = await account.profile();
+
+      final withGender = await account.setGender(before.gender == Gender.male ? Gender.female : Gender.male);
+      expect(withGender.gender, isNot(before.gender));
+      expect((await account.setGender(before.gender ?? Gender.female)).gender, before.gender ?? Gender.female);
+
+      final withAddress = await account.setAddress(
+        const PostalAddress(city: 'Cotonou', quarter: 'Akpakpa', street: 'Avenue Steinmetz'),
+      );
+      expect(withAddress.address?.summary, 'Avenue Steinmetz, Akpakpa, Cotonou');
+
+      // Le profil du back ne renvoie pas l'e-mail : l'ajout est tenté, puis la modification si un e-mail existe déjà.
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final saved = await account.updateProfile(before.copyWith(email: 'live$stamp@exemple.bj'));
+      expect(saved.email, 'live$stamp@exemple.bj');
+      expect(saved.emailVerified, isFalse);
+
+      await expectLater(
+        account.verify(VerificationKind.email, '000000'),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('Code invalide ou expiré'))),
+      );
+      await account.resendVerification();
     },
     skip: skip,
   );

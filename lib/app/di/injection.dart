@@ -321,7 +321,20 @@ void _account(bool fake) {
     ..registerLazySingleton(() => RequestDataExport(sl()))
     ..registerLazySingleton(() => ChangePassword(sl()))
     ..registerLazySingleton(() => DeleteAccount(sl()))
-    ..registerFactory(() => ProfileCubit(sl(), sl()))
+    ..registerLazySingleton(() => SetGender(sl()))
+    ..registerLazySingleton(() => SetAddress(sl()))
+    ..registerLazySingleton(() => ResendVerification(sl()))
+    ..registerLazySingleton(() => VerifyContact(sl()))
+    ..registerFactory(
+      () => ProfileCubit(
+        sl(),
+        sl(),
+        setGender: sl(),
+        setAddress: sl(),
+        resendVerification: sl(),
+        verifyContact: sl(),
+      ),
+    )
     ..registerFactory(() => SettingsCubit(sl(), sl()))
     ..registerFactory(() => SupportCubit(sl(), sl()))
     ..registerFactory(() => SecurityCubit(sl(), sl()));

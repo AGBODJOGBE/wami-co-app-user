@@ -123,6 +123,25 @@ Vérifié sur le back local (gains d'affilié mis à 20 000 en base, vraie deman
 
 ---
 
+## 🟡 Profil : e-mail, civilité, adresse, vérification (`/api/users/:id/*`)
+
+Vérifié sur le back local.
+
+1. **`GET /api/passengers/profile` et `GET /api/users/:id` ne renvoient ni l'`email` ni l'`address`**, alors qu'ils sont bien enregistrés en base (constaté après `add-email`
+   et `address`). L'écran « Mon profil » ne peut donc pas les afficher à la réouverture ; l'app garde ce qu'elle vient de saisir pendant la session seulement.
+   Ajouter `email` et `address` (`city`, `quarter`, `street`, `landmark`) aux deux réponses. Corrige aussi l'e-mail vide dans le profil.
+2. **`add-email` et `PATCH /email` font doublon** : `add-email` répond `409 User already has an email. Use updateEmail to change it.` quand un e-mail existe. Comme le profil ne
+   renvoie pas l'e-mail (point 1), l'app tente `add-email` puis `PATCH`. Une seule route (`PUT /api/users/:id/email`) suffirait.
+3. **`resend-verification` renvoie toujours les deux codes (SMS et e-mail)**, même si le téléphone est déjà vérifié. Prévoir `?channel=email|phone`. Le code source lit
+   `user.address!` et `user.gender!` : à vérifier qu'il ne plante pas (500) pour un compte sans adresse ou sans civilité, ce que je n'ai pas pu reproduire.
+4. **Codes de vérification illisibles en développement** (`SMS_PROVIDER=mock`) : aucune trace du code dans les logs ni en base, donc impossible de tester une vérification réussie
+   sans accès aux messages. Journaliser le code en `NODE_ENV=development`.
+5. **Messages d'erreur en anglais ou mélangés** (`Valid gender (MALE or FEMALE) is required`, `Address with city and quarter is required`, `User already has an email…`) :
+   l'app valide avant l'appel et traduit le refus de code ; préférer des codes stables.
+6. **Changement de téléphone** (`PATCH /phone`) : dire s'il remet `isPhoneVerified` à `false` et envoie un code ; l'app affiche « Téléphone non vérifié » dès que le profil le dit.
+
+---
+
 ## 🟠 Fonctions du mobile que le back ne gère pas
 
 > Les modules entiers qui n'ont aucune route (accueil, bus, hébergement, paramètres, SOS/partage/messagerie de course) sont spécifiés
