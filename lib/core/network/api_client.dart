@@ -17,7 +17,7 @@ class ApiClient {
       : _dio = (dio ?? Dio(_options(config)))..interceptors.add(authInterceptor);
 
   static BaseOptions _options(AppConfig config) => BaseOptions(
-        baseUrl: config.apiBaseUrl,
+        baseUrl: config.serverUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 20),
         headers: {'Accept': 'application/json', 'Accept-Language': 'fr'},

@@ -1,6 +1,7 @@
 import '../../../core/data/fake_backend.dart';
 import '../../../core/data/repository_guard.dart';
 import '../../../core/domain/service_type.dart';
+import '../../../core/error/exceptions.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/result.dart';
 import '../domain/activity.dart';
@@ -9,10 +10,7 @@ abstract interface class ActivityRemoteDataSource {
   Future<List<Activity>> fetch();
 }
 
-/// Livraisons du passager (`GET /api/passenger/delivery`).
-///
-/// Les courses n'apparaissent pas encore : le back n'expose pas l'historique des courses du passager
-/// (`GetRideHistoryController` existe mais n'est branché sur aucune route, voir docs/BACKEND_A_FAIRE.md).
+/// Courses (`GET /api/passengers/rides`) et livraisons (`GET /api/passenger/delivery`) du passager.
 /// Bus et hébergement n'existent pas côté back.
 class ActivityApiDataSource implements ActivityRemoteDataSource {
   const ActivityApiDataSource(this._api);
@@ -20,9 +18,69 @@ class ActivityApiDataSource implements ActivityRemoteDataSource {
 
   @override
   Future<List<Activity>> fetch() async {
+    final results = await Future.wait([_rides(), _deliveries()]);
+    return [...results[0], ...results[1]];
+  }
+
+  /// Si l'historique des courses échoue côté serveur, on montre quand même les livraisons : un écran vide
+  /// serait pire. Une coupure réseau, elle, reste une erreur pour tout l'écran.
+  Future<List<Activity>> _rides() async {
+    try {
+      final json = await _api.get('/api/passengers/rides');
+      return (json['rides'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>().map(ride).toList();
+    } on ServerException {
+      return const [];
+    }
+  }
+
+  Future<List<Activity>> _deliveries() async {
     final json = await _api.get('/api/passenger/delivery');
     final items = (json['items'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
     return items.map(delivery).toList();
+  }
+
+  static Activity ride(Map<String, dynamic> j) {
+    final status = _rideStatus(j['status'] as String?);
+    final dropoff = (j['dropoff'] as Map<String, dynamic>?)?['address'] as String? ?? '';
+    final driver = j['driver'] as Map<String, dynamic>?;
+    final driverName = driver == null ? null : '${driver['firstName'] ?? ''} ${driver['lastName'] ?? ''}'.trim();
+    final scheduledAt = DateTime.tryParse(j['scheduledAt'] as String? ?? '');
+    return Activity(
+      id: j['rideId'] as String,
+      service: ServiceType.mobility,
+      title: dropoff.isEmpty ? 'Course' : 'Course vers $dropoff',
+      subtitle: switch (status) {
+        ActivityStatus.ongoing =>
+          driverName == null || driverName.isEmpty ? 'Recherche d’un chauffeur' : 'Chauffeur : $driverName',
+        ActivityStatus.upcoming => 'Réservation',
+        ActivityStatus.done => driverName == null || driverName.isEmpty ? 'Terminée' : 'Terminée · $driverName',
+        ActivityStatus.cancelled => j['status'] == 'NO_DRIVER_FOUND' ? 'Aucun chauffeur disponible' : 'Annulée',
+      },
+      date: (status == ActivityStatus.upcoming ? scheduledAt : null) ??
+          DateTime.parse(j['createdAt'] as String).toLocal(),
+      // Une course annulée ne coûte rien, sauf frais d'annulation déjà inclus dans le prix final.
+      amount:
+          ((j['finalPrice'] ?? (status == ActivityStatus.cancelled ? 0 : j['estimatedPrice'])) as num?)?.toInt() ?? 0,
+      status: status,
+    );
+  }
+
+  static ActivityStatus _rideStatus(String? status) {
+    switch (status) {
+      case 'COMPLETED' || 'RATED':
+        return ActivityStatus.done;
+      case 'CANCELLED_PASSENGER' ||
+            'CANCELLED_DRIVER' ||
+            'CANCELLED_SYSTEM' ||
+            'NO_DRIVER_FOUND' ||
+            'NO_SHOW_PASSENGER' ||
+            'DISPUTED':
+        return ActivityStatus.cancelled;
+      case 'SCHEDULED_CONFIRMED':
+        return ActivityStatus.upcoming;
+      default:
+        return ActivityStatus.ongoing;
+    }
   }
 
   static Activity delivery(Map<String, dynamic> j) {

@@ -160,22 +160,24 @@ void main() {
     test('suppression : le back plante après avoir supprimé le profil, l’app le constate', () async {
       server
         ..on(
-            'DELETE /api/passengers/profile',
-            {
-              'success': false,
-              'error': {
-                'message': 'An unexpected error occurred while deleting profile',
-                'code': 'INTERNAL_SERVER_ERROR',
-              },
+          'DELETE /api/passengers/profile',
+          {
+            'success': false,
+            'error': {
+              'message': 'An unexpected error occurred while deleting profile',
+              'code': 'INTERNAL_SERVER_ERROR',
             },
-            status: 500,)
+          },
+          status: 500,
+        )
         ..on(
-            'GET /api/passengers/profile',
-            {
-              'success': false,
-              'error': {'message': 'Passenger profile not found', 'code': 'NOT_FOUND'},
-            },
-            status: 404,);
+          'GET /api/passengers/profile',
+          {
+            'success': false,
+            'error': {'message': 'Passenger profile not found', 'code': 'NOT_FOUND'},
+          },
+          status: 404,
+        );
       await account.deleteAccount('Motdepasse1');
       await Future<void>.delayed(Duration.zero);
       expect(logouts, 1);
