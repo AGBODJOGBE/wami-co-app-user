@@ -9,7 +9,8 @@ import 'package:wami/core/network/api_client.dart';
 import 'package:wami/core/network/auth_interceptor.dart';
 
 /// Faux serveur HTTP pour tester les sources de données sans réseau.
-/// Chaque réponse est enregistrée par `MÉTHODE chemin` (sans la chaîne de requête).
+/// Chaque réponse est enregistrée par `MÉTHODE chemin`. Une route peut aussi imposer des paramètres de requête
+/// (`GET /chemin?vehicleType=MOTO`) : elle est alors préférée à la route sans paramètre.
 class StubServer implements HttpClientAdapter {
   final _routes = <String, List<(int, Object?)>>{};
   final requests = <RequestOptions>[];
@@ -51,7 +52,7 @@ class StubServer implements HttpClientAdapter {
   ) async {
     requests.add(options);
     onRequest?.call();
-    final queue = _routes['${options.method} ${options.path}'];
+    final queue = _queueFor(options);
     if (queue == null) {
       return ResponseBody.fromString(jsonEncode({'success': false, 'error': 'route inconnue'}), 404, headers: _json);
     }
@@ -60,6 +61,17 @@ class StubServer implements HttpClientAdapter {
       throw DioException(requestOptions: options, type: DioExceptionType.connectionError);
     }
     return ResponseBody.fromString(jsonEncode(body), status, headers: _json);
+  }
+
+  List<(int, Object?)>? _queueFor(RequestOptions options) {
+    final base = '${options.method} ${options.path}';
+    for (final entry in _routes.entries) {
+      if (!entry.key.startsWith('$base?')) continue;
+      final wanted = Uri.splitQueryString(entry.key.substring(base.length + 1));
+      final matches = wanted.entries.every((w) => '${options.queryParameters[w.key]}' == w.value);
+      if (matches) return entry.value;
+    }
+    return _routes[base];
   }
 
   static const _json = {

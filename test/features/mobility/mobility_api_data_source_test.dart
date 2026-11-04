@@ -172,7 +172,78 @@ void main() {
       expect(offers, isNotEmpty);
       expect(offers.where((o) => o.recommended), hasLength(1));
       expect(offers.firstWhere((o) => o.recommended).price, 900);
-      expect(server.requests.first.data, containsPair('vehicleType', 'MOTO'));
+      expect(server.requests.firstWhere((r) => r.method == 'POST').data, containsPair('vehicleType', 'MOTO'));
+    });
+
+    test('délai d’arrivée et chauffeurs proches par gamme', () async {
+      server
+        ..on('POST /api/passenger/rides/estimate', {
+          'success': true,
+          'data': {'estimatedPrice': 1000, 'durationSeconds': 600},
+        })
+        ..on('GET /api/passengers/rides/nearby-drivers?vehicleType=MOTO', {
+          'success': true,
+          'data': {
+            'count': 2,
+            'drivers': [
+              {'driverId': 'a', 'estimatedArrivalMin': 3},
+              {'driverId': 'b', 'estimatedArrivalMin': 1},
+            ],
+          },
+        })
+        ..on('GET /api/passengers/rides/nearby-drivers?vehicleType=VAN', {
+          'success': true,
+          'data': {'count': 0, 'drivers': []},
+        })
+        // Les autres gammes : le service des chauffeurs proches est en panne, la commande reste possible.
+        ..on('GET /api/passengers/rides/nearby-drivers', {'success': false, 'error': 'boom'}, status: 500);
+
+      final offers = (await rides.estimate(_from, _to)).offers;
+      VehicleOffer offerOf(VehicleCategory c) => offers.firstWhere((o) => o.category == c);
+
+      final moto = offerOf(VehicleCategory.moto);
+      expect(moto.nearbyDrivers, 2);
+      expect(moto.arrivalMinutes, 1, reason: 'le chauffeur le plus proche');
+      final van = offerOf(VehicleCategory.van);
+      expect(van.nearbyDrivers, 0);
+      expect(van.arrivalMinutes, isNull);
+      expect(van.noDriverNearby, isTrue);
+      final confort = offerOf(VehicleCategory.confort);
+      expect(confort.nearbyDrivers, isNull, reason: 'information indisponible, pas « aucun chauffeur »');
+      expect(confort.noDriverNearby, isFalse);
+      // La position du passager est envoyée.
+      final query = server.requests.firstWhere((r) => r.path.contains('nearby-drivers')).queryParameters;
+      expect(query['latitude'], 6.36);
+      expect(query['longitude'], 2.41);
+    });
+
+    test('mis en avant : le moins cher parmi les gammes qui ont des chauffeurs', () async {
+      // Estimations dans l'ordre des gammes : la moto (1re) est la moins chère mais sans chauffeur.
+      final prices = {for (var i = 0; i < VehicleCategory.values.length; i++) VehicleCategory.values[i]: 500 + i * 100};
+      for (final entry in prices.entries) {
+        server.on('POST /api/passenger/rides/estimate', {
+          'success': true,
+          'data': {'estimatedPrice': entry.value, 'durationSeconds': 60},
+        });
+      }
+      server
+        ..on('GET /api/passengers/rides/nearby-drivers?vehicleType=MOTO', {
+          'success': true,
+          'data': {'count': 0, 'drivers': []},
+        })
+        ..on('GET /api/passengers/rides/nearby-drivers', {
+          'success': true,
+          'data': {
+            'count': 1,
+            'drivers': [
+              {'estimatedArrivalMin': 4},
+            ],
+          },
+        });
+      final offers = (await rides.estimate(_from, _to)).offers;
+      final recommended = offers.singleWhere((o) => o.recommended);
+      expect(recommended.category, isNot(VehicleCategory.moto));
+      expect(recommended.nearbyDrivers, 1);
     });
 
     test('estimation avec code promo : le code part, le prix remisé est lu', () async {
@@ -187,7 +258,7 @@ void main() {
         },
       });
       final quote = await rides.estimate(_from, _to, promoCode: 'NOUVEAU300');
-      expect(server.requests.first.data, containsPair('promoCode', 'NOUVEAU300'));
+      expect(server.requests.firstWhere((r) => r.method == 'POST').data, containsPair('promoCode', 'NOUVEAU300'));
       expect(quote.promoError, isNull);
       expect(quote.offers.first.price, 1392);
       expect(quote.offers.first.discount, 137);

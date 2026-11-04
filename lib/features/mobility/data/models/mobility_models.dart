@@ -36,11 +36,9 @@ abstract final class MobilityModels {
   static VehicleOffer? offer(VehicleCategory category, Map<String, dynamic> j) {
     final price = j['finalEstimatedPrice'] ?? j['estimatedPrice'];
     if (price is! num) return null;
-    final seconds = (j['durationSeconds'] as num?)?.toInt() ?? 0;
     return VehicleOffer(
       category: category,
       price: price.toInt(),
-      etaMinutes: (seconds / 60).ceil(),
       discount: (j['discountAmount'] as num?)?.toInt() ?? 0,
     );
   }
@@ -51,6 +49,16 @@ abstract final class MobilityModels {
     if (error == null || error.isEmpty) return null;
     if (RegExp(r"^PromoCode with id '.*' not found$").hasMatch(error)) return 'Code promo inconnu.';
     return error;
+  }
+
+  /// Réponse de `GET /rides/nearby-drivers` : nombre de chauffeurs et délai d'arrivée du plus proche.
+  static ({int count, int? arrivalMinutes}) nearby(Map<String, dynamic> j) {
+    final drivers = (j['drivers'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>();
+    final arrivals = [for (final d in drivers) (d['estimatedArrivalMin'] as num?)?.toInt()].whereType<int>();
+    return (
+      count: (j['count'] as num?)?.toInt() ?? drivers.length,
+      arrivalMinutes: arrivals.isEmpty ? null : arrivals.reduce((a, b) => a < b ? a : b),
+    );
   }
 
   static AvailablePromo? availablePromo(Map<String, dynamic> j) {

@@ -42,6 +42,10 @@ void main() {
     expect(find.text('Choisissez votre véhicule'), findsOneWidget);
     expect(find.textContaining('800'), findsWidgets);
 
+    // Délai d'arrivée du chauffeur par gamme ; la gamme sans chauffeur proche le dit.
+    expect(find.textContaining('chauffeur dans 3 min'), findsWidgets);
+    expect(find.textContaining('aucun chauffeur proche', skipOffstage: false), findsOneWidget);
+
     // Ouvre la saisie : le code proposé par le back est là.
     await tester.tap(find.text('Code promo'));
     await tester.pumpAndSettle();

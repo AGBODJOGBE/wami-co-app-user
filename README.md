@@ -52,7 +52,7 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
 | Notifications | `GET /api/notifications`, `PATCH /api/notifications/:id/read` | Cloche de l'accueil avec pastille, liste groupée par jour. Un même événement notifié sur plusieurs canaux n'apparaît qu'une fois. Pas encore de notifications push (Firebase à configurer). |
 | Parrainage | `GET /api/passenger/referrals/my`, `my-pending`, `POST /api/passenger/referrals/apply` | Écran « Parrainer un proche » : code, filleuls, utiliser le code d'un proche. La récompense est créditée par le back à la première course du filleul. |
-| Mobilité | `POST /api/passenger/rides/estimate` (avec `promoCode`), `GET /api/passenger/promo-codes`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi en temps réel par WebSocket (salle `ride:{id}`), avec polling de secours (voir plus bas). Paiement `MIXED` : portefeuille, puis espèces. |
+| Mobilité | `POST /api/passenger/rides/estimate` (avec `promoCode`), `GET /api/passenger/promo-codes`, `GET /api/passengers/rides/nearby-drivers`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi en temps réel par WebSocket (salle `ride:{id}`), avec polling de secours (voir plus bas). Paiement `MIXED` : portefeuille, puis espèces. |
 
 **Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, bus, hébergement, paramètres.
 

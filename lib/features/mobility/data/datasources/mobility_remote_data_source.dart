@@ -72,16 +72,19 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
         if (r.$1 case final offer?) offer,
     ];
     if (available.isEmpty) throw const BusinessRuleException('unavailable');
-    // Mis en avant : le moins cher.
-    final cheapest = available.reduce((a, b) => a.price <= b.price ? a : b);
+    // Mis en avant : le moins cher parmi les gammes qui ont des chauffeurs à proximité (sinon, le moins cher).
+    final served = available.where((o) => !o.noDriverNearby).toList();
+    final pool = served.isEmpty ? available : served;
+    final cheapest = pool.reduce((a, b) => a.price <= b.price ? a : b);
     return OfferQuote(
       offers: [
         for (final o in available)
           VehicleOffer(
             category: o.category,
             price: o.price,
-            etaMinutes: o.etaMinutes,
             discount: o.discount,
+            arrivalMinutes: o.arrivalMinutes,
+            nearbyDrivers: o.nearbyDrivers,
             recommended: o == cheapest,
           ),
       ],
@@ -95,6 +98,8 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
     VehicleCategory category,
     String? promoCode,
   ) async {
+    // Les chauffeurs proches s'interrogent en même temps que le prix.
+    final nearby = _nearby(from, category);
     try {
       final json = await _api.post(
         '$_base/estimate',
@@ -107,10 +112,38 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
           if (promoCode != null) 'promoCode': promoCode,
         },
       );
-      return (MobilityModels.offer(category, json), MobilityModels.promoError(json));
+      final offer = MobilityModels.offer(category, json);
+      final near = await nearby;
+      return (
+        offer == null
+            ? null
+            : VehicleOffer(
+                category: offer.category,
+                price: offer.price,
+                discount: offer.discount,
+                arrivalMinutes: near?.arrivalMinutes,
+                nearbyDrivers: near?.count,
+              ),
+        MobilityModels.promoError(json),
+      );
     } on BusinessRuleException {
       // Pas de tarif actif pour ce type de véhicule : on ne le propose pas.
+      await nearby;
       return (null, null);
+    }
+  }
+
+  /// Chauffeurs disponibles autour du départ pour une gamme. Une panne ici ne doit jamais empêcher de commander :
+  /// l'information est alors simplement absente.
+  Future<({int count, int? arrivalMinutes})?> _nearby(Place from, VehicleCategory category) async {
+    try {
+      final json = await _api.get(
+        '/api/passengers/rides/nearby-drivers',
+        query: {'latitude': from.lat, 'longitude': from.lng, 'vehicleType': category.apiName},
+      );
+      return MobilityModels.nearby(json);
+    } on Exception {
+      return null;
     }
   }
 
