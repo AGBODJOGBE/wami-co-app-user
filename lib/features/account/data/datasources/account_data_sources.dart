@@ -1,5 +1,6 @@
 import '../../../../core/auth/current_session.dart';
 import '../../../../core/data/fake_backend.dart';
+import '../../../../core/error/exceptions.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/phone.dart';
 import '../../domain/entities/app_settings.dart';
@@ -10,6 +11,8 @@ abstract interface class AccountRemoteDataSource {
   Future<UserProfile> updateProfile(UserProfile p);
   Future<List<FaqItem>> faq();
   Future<void> requestDataExport();
+  Future<void> changePassword(String currentPassword, String newPassword);
+  Future<void> deleteAccount(String password);
 }
 
 /// Préférences locales à l'appareil.
@@ -110,6 +113,48 @@ class AccountApiDataSource implements AccountRemoteDataSource {
 
   @override
   Future<void> requestDataExport() async {}
+
+  /// Un 401 ici veut dire « mot de passe actuel incorrect », pas « session expirée » : la session est conservée.
+  @override
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    try {
+      await _api.put(
+        '/api/passengers/password',
+        body: {'currentPassword': currentPassword, 'newPassword': newPassword},
+        keepSession: true,
+      );
+    } on UnauthorizedException {
+      throw const BusinessRuleException('wrong_password', 'Mot de passe actuel incorrect.');
+    }
+  }
+
+  @override
+  Future<void> deleteAccount(String password) async {
+    try {
+      await _api.delete('/api/passengers/profile', body: {'password': password}, keepSession: true);
+    } on UnauthorizedException {
+      throw const BusinessRuleException('wrong_password', 'Mot de passe incorrect.');
+    } on ServerException {
+      // Le back supprime le profil puis plante (`user.deactivatePassengerProfile is not a function`) : il répond
+      // 500 alors que le compte a disparu. On vérifie pour ne pas laisser croire à l'utilisateur qu'il existe encore.
+      if (!await _accountIsGone()) rethrow;
+    }
+    // Le jeton est révoqué par le back : l'app revient à l'écran de connexion.
+    _session.requestLogout();
+  }
+
+  Future<bool> _accountIsGone() async {
+    try {
+      await _api.get('/api/passengers/profile');
+      return false;
+    } on BusinessRuleException {
+      return true; // 404 : profil introuvable.
+    } on UnauthorizedException {
+      return true; // jeton révoqué.
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 class AccountFakeDataSource implements AccountRemoteDataSource {
@@ -168,4 +213,13 @@ class AccountFakeDataSource implements AccountRemoteDataSource {
 
   @override
   Future<void> requestDataExport() => _fake.latency();
+
+  @override
+  Future<void> changePassword(String currentPassword, String newPassword) => _fake.latency();
+
+  @override
+  Future<void> deleteAccount(String password) async {
+    await _fake.latency();
+    _session.requestLogout();
+  }
 }

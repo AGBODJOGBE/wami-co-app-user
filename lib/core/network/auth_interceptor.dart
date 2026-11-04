@@ -7,6 +7,9 @@ class AuthInterceptor extends Interceptor {
   AuthInterceptor(this._session);
   final CurrentSession _session;
 
+  /// Clé d'option : ce 401 n'invalide pas la session (voir `ApiClient`).
+  static const keepSessionKey = 'keepSession';
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final token = _session.token;
@@ -19,7 +22,8 @@ class AuthInterceptor extends Interceptor {
     // Un 401 avec un jeton envoyé = jeton expiré, révoqué, ou session ouverte sur un autre appareil.
     // Sans jeton (mauvais mot de passe à la connexion), ce n'est pas une expiration.
     final sentToken = err.requestOptions.headers.containsKey('Authorization');
-    if (err.response?.statusCode == 401 && sentToken) _session.expire();
+    final keep = err.requestOptions.extra[keepSessionKey] == true;
+    if (err.response?.statusCode == 401 && sentToken && !keep) _session.expire();
     handler.next(err);
   }
 }

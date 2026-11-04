@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/utils/phone.dart';
-import 'package:wami/features/auth/domain/usecases/auth_usecases.dart';
+import 'package:wami/core/utils/password_policy.dart';
 
 void main() {
   group('BeninPhone', () {

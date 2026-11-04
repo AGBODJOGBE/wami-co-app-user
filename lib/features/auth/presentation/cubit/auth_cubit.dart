@@ -32,12 +32,14 @@ class AuthCubit extends Cubit<AuthState> {
         _signOut = signOut,
         super(const AuthState()) {
     _expiredSub = _current.onExpired.listen((_) => endSession(expired: true));
+    _logoutSub = _current.onLogoutRequested.listen((_) => endSession());
   }
 
   final CurrentSession _current;
   final RestoreSession _restore;
   final SignOut _signOut;
   late final StreamSubscription<void> _expiredSub;
+  late final StreamSubscription<void> _logoutSub;
 
   /// À appeler avant `runApp` : reprend la session de l'appareil.
   Future<void> restore() async {
@@ -67,6 +69,7 @@ class AuthCubit extends Cubit<AuthState> {
   @override
   Future<void> close() {
     _expiredSub.cancel();
+    _logoutSub.cancel();
     return super.close();
   }
 }

@@ -10,6 +10,7 @@ import '../../../../core/theme/wami_palette.dart';
 import '../../../../core/theme/wami_tokens.dart';
 import '../../../../core/theme/wami_typography.dart';
 import '../../../../core/utils/load_status.dart';
+import '../../../../core/utils/password_policy.dart';
 import '../../../../core/utils/phone.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/wami_background.dart';
@@ -19,20 +20,20 @@ import '../../../../core/widgets/wami_scaffold.dart';
 import '../../../../core/widgets/wami_selectors.dart';
 import '../../../../core/widgets/wami_text_field.dart';
 import '../../domain/entities/auth_entities.dart';
-import '../../domain/usecases/auth_usecases.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/sign_in_cubit.dart';
 
-/// Connexion et inscription : une seule route, quatre étapes (voir [SignInStep]).
+/// Connexion et inscription : une seule route, cinq étapes (voir [SignInStep]).
 ///
 /// Numéro (1/3) → code SMS (2/3) → mot de passe si le compte existe, sinon inscription (3/3).
+/// « Mot de passe oublié » mène à une cinquième étape : code SMS et nouveau mot de passe.
 class SignInPage extends StatelessWidget {
   const SignInPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SignInCubit, SignInState>(
-      listenWhen: (a, b) => a.status != b.status || a.session != b.session,
+      listenWhen: (a, b) => a.status != b.status || a.session != b.session || a.notice != b.notice,
       listener: (context, state) {
         final session = state.session;
         if (session != null) {
@@ -40,6 +41,8 @@ class SignInPage extends StatelessWidget {
           context.read<AuthCubit>().signedIn(session);
         } else if (state.status == LoadStatus.failure) {
           showWamiMessage(context, state.failure!.message);
+        } else if (state.notice != null) {
+          showWamiMessage(context, state.notice!);
         }
       },
       builder: (context, state) {
@@ -52,6 +55,7 @@ class SignInPage extends StatelessWidget {
             SignInStep.code => 'Code de vérification',
             SignInStep.password => 'Bon retour',
             SignInStep.register => 'Créer votre compte',
+            SignInStep.reset => 'Nouveau mot de passe',
           },
           subtitle: switch (state.step) {
             SignInStep.phone => 'Entrez votre numéro pour vous connecter ou créer un compte. Un code vous sera envoyé '
@@ -59,12 +63,14 @@ class SignInPage extends StatelessWidget {
             SignInStep.code => 'Saisissez le code à 6 chiffres envoyé par SMS au $phone.',
             SignInStep.password => 'Saisissez votre mot de passe pour accéder à votre compte.',
             SignInStep.register => 'Votre numéro est vérifié. Encore quelques informations et c’est parti.',
+            SignInStep.reset => 'Saisissez le code reçu par SMS au $phone, puis choisissez un nouveau mot de passe.',
           },
           child: switch (state.step) {
             SignInStep.phone => _PhoneStep(state: state),
             SignInStep.code => _CodeStep(state: state),
             SignInStep.password => _PasswordStep(state: state),
             SignInStep.register => _RegisterStep(state: state),
+            SignInStep.reset => _ResetStep(state: state),
           },
         );
       },
@@ -91,7 +97,7 @@ class _AuthLayout extends StatelessWidget {
   int get _position => switch (step) {
         SignInStep.phone => 1,
         SignInStep.code => 2,
-        SignInStep.password || SignInStep.register => 3,
+        SignInStep.password || SignInStep.register || SignInStep.reset => 3,
       };
 
   @override
@@ -535,6 +541,98 @@ class _PasswordStepState extends State<_PasswordStep> {
           icon: Icons.arrow_forward_rounded,
           loading: widget.state.busy,
           onPressed: _submit,
+        ),
+        WamiGhostButton(
+          label: 'Mot de passe oublié ?',
+          onPressed: widget.state.busy ? null : () => context.read<SignInCubit>().forgotPassword(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mot de passe oublié : code reçu par SMS et nouveau mot de passe.
+class _ResetStep extends StatefulWidget {
+  const _ResetStep({required this.state});
+  final SignInState state;
+
+  @override
+  State<_ResetStep> createState() => _ResetStepState();
+}
+
+class _ResetStepState extends State<_ResetStep> {
+  final _code = TextEditingController();
+  final _password = TextEditingController();
+  bool _hidden = true;
+  bool _submitted = false;
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _code.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  int get _secondsLeft {
+    final at = widget.state.resendAvailableAt;
+    if (at == null) return 0;
+    final left = at.difference(DateTime.now()).inSeconds + 1;
+    return left < 0 ? 0 : left;
+  }
+
+  void _submit() {
+    setState(() => _submitted = true);
+    if (PasswordPolicy.check(_password.text) != null) return;
+    context.read<SignInCubit>().submitReset(code: _code.text, newPassword: _password.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.wami;
+    final wait = _secondsLeft;
+    return Gap(
+      gap: WamiSpace.s4,
+      children: [
+        _PhoneRecap(phone: widget.state.phone),
+        _CodeBoxes(controller: _code, onCompleted: () {}),
+        _FormSection(
+          label: 'Nouveau mot de passe',
+          children: [
+            WamiTextField(
+              hint: 'Votre nouveau mot de passe',
+              label: 'Mot de passe',
+              icon: Icons.lock_outline_rounded,
+              controller: _password,
+              obscureText: _hidden,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _submit(),
+              suffix: _VisibilityToggle(hidden: _hidden, onToggle: () => setState(() => _hidden = !_hidden)),
+            ),
+            _PasswordRules(password: _password.text, highlightMissing: _submitted),
+          ],
+        ),
+        WamiPrimaryButton(label: 'Changer le mot de passe', loading: widget.state.busy, onPressed: _submit),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Pas reçu de code ?', style: Theme.of(context).textTheme.bodySmall),
+            TextButton(
+              onPressed: wait > 0 || widget.state.busy ? null : () => context.read<SignInCubit>().forgotPassword(),
+              child: Text(
+                wait > 0 ? 'Renvoyer dans ${wait}s' : 'Renvoyer le code',
+                style: TextStyle(fontWeight: FontWeight.w700, color: wait > 0 ? p.inkMuted : p.orangeStrong),
+              ),
+            ),
+          ],
         ),
       ],
     );

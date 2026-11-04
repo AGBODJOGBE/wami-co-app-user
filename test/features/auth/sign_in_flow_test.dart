@@ -78,6 +78,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(sl<AuthCubit>().state.isAuthenticated, isTrue);
 
+    // Mot de passe oublié : code, nouveau mot de passe, puis connexion avec le nouveau.
+    await sl<AuthCubit>().logout();
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '0197123456');
+    await tester.tap(find.text('Recevoir le code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.pumpAndSettle();
+    expect(find.text('Bon retour'), findsOneWidget);
+
+    await tester.tap(find.text('Mot de passe oublié ?'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nouveau mot de passe'), findsWidgets);
+
+    // Mauvais code : on reste sur l'étape.
+    await tester.enterText(find.byType(TextFormField).at(0), '000000');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Nouveau2pass');
+    await tester.tap(find.text('Changer le mot de passe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Changer le mot de passe'), findsOneWidget);
+    // Le message d'erreur masquerait le bouton.
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).removeCurrentSnackBar();
+
+    await tester.enterText(find.byType(TextFormField).at(0), '123456');
+    await tester.tap(find.text('Changer le mot de passe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bon retour'), findsOneWidget);
+
+    // L'ancien mot de passe ne marche plus, le nouveau oui.
+    await tester.enterText(find.byType(TextFormField), 'Motdepasse1');
+    await tester.tap(find.text('Se connecter'));
+    await tester.pumpAndSettle();
+    expect(sl<AuthCubit>().state.isAuthenticated, isFalse);
+    await tester.enterText(find.byType(TextFormField), 'Nouveau2pass');
+    await tester.tap(find.text('Se connecter'));
+    await tester.pumpAndSettle();
+    expect(sl<AuthCubit>().state.isAuthenticated, isTrue);
+
     await tester.pumpWidget(const SizedBox());
   });
 }

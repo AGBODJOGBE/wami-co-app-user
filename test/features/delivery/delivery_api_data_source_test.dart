@@ -224,10 +224,15 @@ void main() {
     test('fermer l’écran arrête le suivi, même sans coursier assigné', () async {
       server.on('GET /api/passenger/delivery/o1', _ok({'status': 'PENDING_MATCH'}));
       final sub = delivery.track('o1').listen((_) {});
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Attend les premières interrogations (la machine peut être lente), sans durée fixe.
+      for (var i = 0; i < 100 && server.count('GET /api/passenger/delivery/o1') < 2; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
       await sub.cancel();
-      final after = server.count('GET /api/passenger/delivery/o1');
+      // Une requête déjà lancée avant l'annulation peut encore s'enregistrer : on la laisse se terminer.
       await Future<void>.delayed(const Duration(milliseconds: 100));
+      final after = server.count('GET /api/passenger/delivery/o1');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       expect(after, greaterThan(0));
       expect(server.count('GET /api/passenger/delivery/o1'), after);
     });

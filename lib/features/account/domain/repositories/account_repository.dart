@@ -9,4 +9,10 @@ abstract interface class AccountRepository {
   Future<Result<void>> saveSettings(AppSettings settings);
   Future<Result<List<FaqItem>>> getFaq();
   Future<Result<void>> requestDataExport();
+
+  /// Le mot de passe actuel est exigé par le back.
+  Future<Result<void>> changePassword({required String currentPassword, required String newPassword});
+
+  /// Supprime le compte après confirmation par le mot de passe. La session se termine ensuite.
+  Future<Result<void>> deleteAccount(String password);
 }

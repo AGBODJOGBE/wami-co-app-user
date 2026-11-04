@@ -22,6 +22,13 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Result<void>> register(RegisterData data) => guard(() => _remote.register(data));
 
   @override
+  Future<Result<void>> requestPasswordReset(String phone) => guard(() => _remote.requestPasswordReset(phone));
+
+  @override
+  Future<Result<void>> resetPassword({required String phone, required String code, required String newPassword}) =>
+      guard(() => _remote.resetPassword(phone, code, newPassword));
+
+  @override
   Future<Result<AuthSession>> login(String phone, String password) async {
     final result = await guard(() => _remote.login(phone, password));
     switch (result) {
