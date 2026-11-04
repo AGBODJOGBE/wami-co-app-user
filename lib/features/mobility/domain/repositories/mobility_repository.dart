@@ -1,5 +1,6 @@
 import '../../../../core/utils/result.dart';
 import '../entities/place.dart';
+import '../entities/promo_usage.dart';
 import '../entities/ride.dart';
 import '../entities/vehicle_offer.dart';
 import '../entities/waiting_policy.dart';
@@ -31,4 +32,12 @@ abstract interface class MobilityRepository {
   Future<Result<void>> cancelRide(String rideId);
 
   Future<Result<void>> rateRide(RideRating rating);
+
+  /// Demande au chauffeur de changer la destination pendant la course (il accepte ou refuse).
+  Future<Result<void>> requestDestinationChange(String rideId, Place newDropoff);
+
+  /// Part du portefeuille pour une course payée en mixte ; `null` = automatique.
+  Future<Result<PaymentSplit>> setPaymentSplit(String rideId, int? walletAmount);
+
+  Future<Result<PromoHistory>> promoHistory();
 }

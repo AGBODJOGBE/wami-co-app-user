@@ -182,6 +182,9 @@ void _mobility(bool fake) {
     ..registerLazySingleton(() => WatchRide(sl()))
     ..registerLazySingleton(() => CancelRide(sl()))
     ..registerLazySingleton(() => RateRide(sl()))
+    ..registerLazySingleton(() => ChangeRideDestination(sl()))
+    ..registerLazySingleton(() => SetPaymentSplit(sl()))
+    ..registerLazySingleton(() => GetPromoHistory(sl()))
     ..registerFactory(
       () => RideBloc(
         getCurrentPlace: sl(),
@@ -193,6 +196,9 @@ void _mobility(bool fake) {
         watchRide: sl(),
         cancelRide: sl(),
         rateRide: sl(),
+        changeDestination: sl(),
+        setPaymentSplit: sl(),
+        getPromoHistory: sl(),
       ),
     );
 }

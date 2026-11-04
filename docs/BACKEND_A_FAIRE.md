@@ -147,3 +147,8 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 - **Limite de connexion** : 5 tentatives par 15 minutes (`429`). Renvoyer un `Retry-After` exploitable (déjà présent) et un code `RATE_LIMITED` stable.
 - **Statut `PENDING` d'un transfert/une recharge** : exposer `GET /api/wallets/:id/transactions?status=PENDING` pour afficher les opérations en cours.
 - **Tests** : `npm run test:unit|integration|e2e` ne trouvent aucun test (voir `CLAUDE.md` du back) et sortent en succès.
+- **Changement de destination, réponse du chauffeur** : `GET /api/passenger/rides/:id` n'expose pas `pendingDestinationChange`. L'app ne voit
+  donc que l'acceptation (l'adresse d'arrivée `dropoff.address` change) ; un **refus** est invisible tant que le WebSocket
+  `ride:destination_change_rejected` n'est pas écouté. Proposition : renvoyer `pendingDestinationChange` (ou son dernier état `ACCEPTED|REJECTED` et le motif) dans `GET /rides/:id`.
+- **Répartition du paiement** : `PATCH …/payment-split` n'est accepté que pour `paymentMethod=MIXED` ; l'app crée toutes les courses en `MIXED`.
+- **Historique des codes promo** : `GET /api/passenger/promo-codes/usages` mêle les usages de toutes les verticales (`sourceType`) sans libellé ni date de course ; ajouter un titre lisible.

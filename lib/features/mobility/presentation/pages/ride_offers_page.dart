@@ -132,6 +132,12 @@ class _PromoSheetState extends State<_PromoSheet> {
   final _code = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    context.read<RideBloc>().add(const RidePromoHistoryRequested());
+  }
+
+  @override
   void dispose() {
     _code.dispose();
     super.dispose();
@@ -190,6 +196,10 @@ class _PromoSheetState extends State<_PromoSheet> {
                   ),
               ],
             ),
+          ],
+          if (state.promoHistory case final history? when history.usages.isNotEmpty) ...[
+            Text('Déjà utilisés · ${Fmt.fcfa(history.totalDiscount)} économisés', style: t.labelLarge),
+            for (final u in history.usages.take(5)) Text('${u.code} · −${Fmt.fcfa(u.discount)}', style: t.bodySmall),
           ],
           WamiPrimaryButton(label: 'Appliquer', onPressed: () => _apply(_code.text)),
         ],

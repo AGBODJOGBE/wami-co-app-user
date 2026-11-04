@@ -2,6 +2,7 @@ import '../../../../core/data/repository_guard.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/entities/place.dart';
+import '../../domain/entities/promo_usage.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
@@ -49,4 +50,15 @@ class MobilityRepositoryImpl implements MobilityRepository {
 
   @override
   Future<Result<void>> rateRide(RideRating rating) => guard(() => _remote.rateRide(rating));
+
+  @override
+  Future<Result<void>> requestDestinationChange(String rideId, Place newDropoff) =>
+      guard(() => _remote.requestDestinationChange(rideId, newDropoff));
+
+  @override
+  Future<Result<PaymentSplit>> setPaymentSplit(String rideId, int? walletAmount) =>
+      guard(() => _remote.setPaymentSplit(rideId, walletAmount));
+
+  @override
+  Future<Result<PromoHistory>> promoHistory() => guard(_remote.promoHistory);
 }

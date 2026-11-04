@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../../../core/data/fake_backend.dart';
 import '../../domain/entities/place.dart';
+import '../../domain/entities/promo_usage.dart';
 import '../../domain/entities/ride.dart';
 import '../../domain/entities/vehicle_offer.dart';
 import '../../domain/entities/waiting_policy.dart';
@@ -152,4 +153,22 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
 
   @override
   Future<void> rateRide(RideRating rating) => _fake.latency();
+
+  @override
+  Future<void> requestDestinationChange(String rideId, Place newDropoff) => _fake.latency();
+
+  @override
+  Future<PaymentSplit> setPaymentSplit(String rideId, int? walletAmount) async {
+    await _fake.latency(0.5);
+    return PaymentSplit(walletAmount: walletAmount, cashAmount: walletAmount == null ? 0 : 500);
+  }
+
+  @override
+  Future<PromoHistory> promoHistory() async {
+    await _fake.latency(0.5);
+    return PromoHistory(
+      usages: [PromoUsage(code: 'BIENVENUE', discount: 500, appliedAt: DateTime(2026, 10, 2))],
+      totalDiscount: 500,
+    );
+  }
 }

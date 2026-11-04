@@ -16,6 +16,11 @@ class RideState extends Equatable {
     this.promoCode,
     this.promoError,
     this.availablePromos = const [],
+    this.pendingDestination,
+    this.paymentSplit,
+    this.splitStatus = LoadStatus.idle,
+    this.promoHistory,
+    this.notice,
     this.failure,
   });
 
@@ -38,6 +43,19 @@ class RideState extends Equatable {
   final String? promoError;
   final List<AvailablePromo> availablePromos;
   final Failure? failure;
+
+  /// Nouvelle destination demandée, en attente de la réponse du chauffeur.
+  final Place? pendingDestination;
+
+  /// Dernière répartition du paiement confirmée par le serveur.
+  final PaymentSplit? paymentSplit;
+  final LoadStatus splitStatus;
+
+  /// Historique des codes promo (`null` tant qu'il n'est pas chargé).
+  final PromoHistory? promoHistory;
+
+  /// Message d'information montré une fois (demande envoyée, répartition enregistrée…).
+  final String? notice;
 
   VehicleOffer? get selectedOffer {
     for (final o in offers) {
@@ -62,6 +80,12 @@ class RideState extends Equatable {
     bool clearPromoCode = false,
     String? promoError,
     List<AvailablePromo>? availablePromos,
+    Place? pendingDestination,
+    bool clearPendingDestination = false,
+    PaymentSplit? paymentSplit,
+    LoadStatus? splitStatus,
+    PromoHistory? promoHistory,
+    String? notice,
     Failure? failure,
   }) {
     return RideState(
@@ -81,6 +105,12 @@ class RideState extends Equatable {
       promoError: promoError,
       availablePromos: availablePromos ?? this.availablePromos,
       // Un échec n'est conservé que pour l'émission qui le signale.
+      pendingDestination: clearPendingDestination ? null : (pendingDestination ?? this.pendingDestination),
+      paymentSplit: paymentSplit ?? this.paymentSplit,
+      splitStatus: splitStatus ?? this.splitStatus,
+      promoHistory: promoHistory ?? this.promoHistory,
+      // Comme `failure`, le message n'est conservé que pour l'émission qui le signale.
+      notice: notice,
       failure: failure,
     );
   }
@@ -101,6 +131,11 @@ class RideState extends Equatable {
         promoCode,
         promoError,
         availablePromos,
+        pendingDestination,
+        paymentSplit,
+        splitStatus,
+        promoHistory,
+        notice,
         failure,
       ];
 }
