@@ -23,6 +23,7 @@ abstract final class Routes {
   static const accountSupport = '/account/support';
   static const accountReferral = '/account/referral';
   static const accountPrivacy = '/account/privacy';
+  static const accountPassword = '/account/password';
 
   // Parcours Mobilité.
   static const ride = '/ride';

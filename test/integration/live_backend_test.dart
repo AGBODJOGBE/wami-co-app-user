@@ -4,6 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wami/core/auth/auth_session.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/config/app_config.dart';
 import 'package:wami/core/error/exceptions.dart';
@@ -11,6 +12,7 @@ import 'package:wami/core/location/location_service.dart';
 import 'package:wami/core/location/place_geocoder.dart';
 import 'package:wami/core/network/api_client.dart';
 import 'package:wami/core/network/auth_interceptor.dart';
+import 'package:wami/core/network/realtime_signals.dart';
 import 'package:wami/features/account/data/datasources/account_data_sources.dart';
 import 'package:wami/features/activities/data/activity_repository_impl.dart';
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
@@ -89,6 +91,17 @@ void main() {
   );
 
   test(
+    'activités : courses et livraisons lues sur le back',
+    () async {
+      final list = await ActivityApiDataSource(api).fetch();
+      expect(list, isNotEmpty);
+      expect(list.every((a) => a.title.isNotEmpty && a.id.isNotEmpty), isTrue);
+      expect(list.where((a) => a.service.name == 'mobility'), isNotEmpty);
+    },
+    skip: skip,
+  );
+
+  test(
     'portefeuille : solde et historique',
     () async {
       final overview = await WalletApiDataSource(api, session).overview();
@@ -159,7 +172,25 @@ void main() {
         await api.delete('/api/passenger/delivery/$id');
       }
       final list = await ActivityApiDataSource(api).fetch();
-      expect(list.first.status.name, 'cancelled');
+      expect(list.where((a) => a.service.name == 'delivery').first.status.name, 'cancelled');
+    },
+    skip: skip,
+  );
+
+  test(
+    'mot de passe : le mauvais mot de passe actuel est refusé sans fermer la session, puis changement et retour',
+    () async {
+      final account = AccountApiDataSource(api, session);
+      await expectLater(
+        account.changePassword('Mauvais1pass', 'Temporaire9pass'),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', 'Mot de passe actuel incorrect.')),
+      );
+      // La session est toujours valable : le profil se lit.
+      expect((await account.profile()).phone, phone);
+
+      await account.changePassword(password!, 'Temporaire9pass');
+      // Remet le mot de passe d'origine pour ne pas gêner les exécutions suivantes.
+      await account.changePassword('Temporaire9pass', password);
     },
     skip: skip,
   );
@@ -228,6 +259,30 @@ void main() {
       await rides.cancelRide(id);
       final last = await rides.watchRide(id).last;
       expect(last.status, RideStatus.cancelled);
+    },
+    skip: skip,
+  );
+
+  test(
+    'temps réel : le WebSocket accepte le jeton de la session et refuse un faux',
+    () async {
+      Future<bool> connects(CurrentSession s) async {
+        final signals = SocketIoRealtimeSignals(AppConfig(apiBaseUrl: url!, useFakeBackend: false), s);
+        final sub = signals.ride('test').listen((_) {});
+        try {
+          for (var i = 0; i < 50 && !signals.isConnected; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+          return signals.isConnected;
+        } finally {
+          await sub.cancel();
+        }
+      }
+
+      expect(await connects(session), isTrue);
+      final forged = CurrentSession()
+        ..set(AuthSession.fromJson({...session.value!.toJson(), 'token': 'faux.jeton.signature'}));
+      expect(await connects(forged), isFalse);
     },
     skip: skip,
   );

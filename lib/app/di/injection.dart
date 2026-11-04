@@ -7,11 +7,13 @@ import '../../core/location/place_geocoder.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_interceptor.dart';
+import '../../core/network/realtime_signals.dart';
 import '../../features/account/data/datasources/account_data_sources.dart';
 import '../../features/account/data/repositories/account_repository_impl.dart';
 import '../../features/account/domain/repositories/account_repository.dart';
 import '../../features/account/domain/usecases/account_usecases.dart';
 import '../../features/account/presentation/cubit/profile_cubit.dart';
+import '../../features/account/presentation/cubit/security_cubit.dart';
 import '../../features/account/presentation/cubit/settings_cubit.dart';
 import '../../features/account/presentation/cubit/support_cubit.dart';
 import '../../features/activities/data/activity_repository_impl.dart';
@@ -77,6 +79,9 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
     )
     ..registerLazySingleton(() => AuthInterceptor(sl()))
     ..registerLazySingleton(() => ApiClient(sl(), sl()))
+    ..registerLazySingleton<RealtimeSignals>(
+      () => config.useFakeBackend ? const NoRealtimeSignals() : SocketIoRealtimeSignals(sl(), sl()),
+    )
     ..registerLazySingleton(() => FakeBackend(sl()))
     ..registerLazySingleton(() => AppRouter(sl()));
 
@@ -106,11 +111,22 @@ void _auth(bool fake) {
     ..registerLazySingleton(() => VerifyOtp(sl()))
     ..registerLazySingleton(() => LoginPassenger(sl()))
     ..registerLazySingleton(() => RegisterPassenger(sl()))
+    ..registerLazySingleton(() => RequestPasswordReset(sl()))
+    ..registerLazySingleton(() => ResetPassword(sl()))
     ..registerLazySingleton(() => RestoreSession(sl()))
     ..registerLazySingleton(() => SignOut(sl()))
     // Session unique pour toute l'application (lue par le routeur) ; le parcours de connexion est créé à chaque visite.
     ..registerLazySingleton(() => AuthCubit(current: sl(), restore: sl(), signOut: sl()))
-    ..registerFactory(() => SignInCubit(sendOtp: sl(), verifyOtp: sl(), login: sl(), register: sl()));
+    ..registerFactory(
+      () => SignInCubit(
+        sendOtp: sl(),
+        verifyOtp: sl(),
+        login: sl(),
+        register: sl(),
+        requestReset: sl(),
+        resetPassword: sl(),
+      ),
+    );
 }
 
 void _home(bool fake) {
@@ -128,7 +144,7 @@ void _mobility(bool fake) {
     )
     ..registerLazySingleton<PlaceGeocoder>(() => NominatimGeocoder(baseUrl: sl<AppConfig>().geocoderUrl))
     ..registerLazySingleton<MobilityRemoteDataSource>(
-      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl(), sl(), sl()),
+      () => fake ? MobilityFakeDataSource(sl()) : MobilityApiDataSource(sl(), sl(), sl(), realtime: sl()),
     )
     ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl(), sl()))
     ..registerLazySingleton(() => GetCurrentPlace(sl()))
@@ -234,9 +250,12 @@ void _account(bool fake) {
     ..registerLazySingleton(() => SaveSettings(sl()))
     ..registerLazySingleton(() => GetFaq(sl()))
     ..registerLazySingleton(() => RequestDataExport(sl()))
+    ..registerLazySingleton(() => ChangePassword(sl()))
+    ..registerLazySingleton(() => DeleteAccount(sl()))
     ..registerFactory(() => ProfileCubit(sl(), sl()))
     ..registerFactory(() => SettingsCubit(sl(), sl()))
-    ..registerFactory(() => SupportCubit(sl(), sl()));
+    ..registerFactory(() => SupportCubit(sl(), sl()))
+    ..registerFactory(() => SecurityCubit(sl(), sl()));
 }
 
 void _activities(bool fake) {

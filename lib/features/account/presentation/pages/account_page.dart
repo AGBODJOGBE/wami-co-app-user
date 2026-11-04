@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/current_session.dart';
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/wami_palette.dart';
 import '../../../../core/theme/wami_tokens.dart';
@@ -65,6 +67,7 @@ class AccountPage extends StatelessWidget {
                     _MenuItem(icon: Icons.person_outline_rounded, label: 'Mon profil', route: Routes.accountProfile),
                     _MenuItem(icon: Icons.settings_outlined, label: 'Paramètres', route: Routes.accountSettings),
                     _MenuItem(icon: Icons.support_agent_rounded, label: 'Assistance', route: Routes.accountSupport),
+                    _MenuItem(icon: Icons.lock_outline_rounded, label: 'Mot de passe', route: Routes.accountPassword),
                     _MenuItem(icon: Icons.shield_outlined, label: 'Confidentialité', route: Routes.accountPrivacy),
                   ],
                 ),
@@ -81,7 +84,7 @@ class AccountPage extends StatelessWidget {
                     ListTile(
                       leading: IconBadge(Icons.logout_rounded, color: context.wami.danger),
                       title: Text('Se déconnecter', style: t.titleSmall?.copyWith(color: context.wami.danger)),
-                      onTap: () => showWamiMessage(context, 'Déconnexion : flux d’authentification à brancher'),
+                      onTap: () => _confirmLogout(context),
                     ),
                   ],
                 ),
@@ -111,4 +114,20 @@ class _MenuItem extends StatelessWidget {
       onTap: () => context.push(route),
     );
   }
+}
+
+Future<void> _confirmLogout(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Se déconnecter ?'),
+      content: const Text('Vous devrez saisir à nouveau votre numéro et un code reçu par SMS.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Se déconnecter')),
+      ],
+    ),
+  );
+  // Le routeur renvoie vers la connexion dès que la session se termine.
+  if (ok == true) sl<CurrentSession>().requestLogout();
 }

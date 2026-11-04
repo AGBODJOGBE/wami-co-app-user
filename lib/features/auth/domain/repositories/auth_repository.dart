@@ -8,6 +8,11 @@ abstract interface class AuthRepository {
   Future<Result<void>> register(RegisterData data);
 
   /// Ouvre la session et la range dans le stockage sécurisé.
+  /// Envoie un code par SMS pour choisir un nouveau mot de passe.
+  Future<Result<void>> requestPasswordReset(String phone);
+
+  Future<Result<void>> resetPassword({required String phone, required String code, required String newPassword});
+
   Future<Result<AuthSession>> login(String phone, String password);
 
   /// Session conservée par l'appareil, s'il y en a une.

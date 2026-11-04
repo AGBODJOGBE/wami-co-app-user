@@ -10,7 +10,9 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 ## 🔴 À corriger avant la mise en ligne
 
 ### 1. Les tarifs de course ne sont pas initialisés au démarrage
-- **Constat** : `POST /api/passenger/rides/estimate` répond `400 "No active pricing config for vehicleType=MOTO"` sur une base neuve.
+- **Constat** : `POST /api/passenger/rides/estimate` répond `500 "[PricingService] No active pricing config for vehicleType=MOTO"`
+  sur une base neuve (`ride_pricing_configs` vide), et `POST /api/passenger/rides` répond `400` avec le même message.
+  Un `500` empêche l'app de masquer le seul véhicule sans tarif : c'est toute l'estimation qui échoue.
 - **Cause** : `PricingService` lit la collection `ride_pricing_configs` (taux, part chauffeur, attente). Son seed
   (`src/modules/ride/infrastructure/persistence/mongodb/seeds/seedRidePricingConfigs.ts`) n'est appelé nulle part ; seul
   `seedPricingProfiles` est lancé au démarrage (`pricing_profiles`, qui contient bien les 16 profils actifs).
@@ -30,17 +32,28 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 - `npm run dev` et `npm run dev:worker` appellent `cross-env`, absent de `package.json` : `sh: cross-env: not found` après `npm ci`.
 - **À faire** : `npm i -D cross-env`.
 
-### 5. L'historique des courses du passager n'est branché sur aucune route
-- **Constat** : `GET /api/passenger/rides` répond `404 Route not found`. `GetRideHistoryController` et `GetRideHistoryUseCase` existent
-  (avec une option `status`) mais `rideRoutes.ts` ne les monte pas.
-- **Effet** : l'écran Activités n'affiche que les livraisons ; aucune course passée n'apparaît.
-- **À faire** : `GET /api/passenger/rides?status=` → `{ success, data: { rides[], total } }` (le contrôleur est prêt).
+### 5. L'historique des courses plante sur les anciens numéros de course
+- **Constat** : `GET /api/passengers/rides` (au pluriel) répond `500 "Invalid ride number format: FY-RD-…"` dès qu'une course
+  porte un ancien numéro `FY-RD-…`. Le renommage ForYou → Wami n'accepte plus que `WM-RD-…`. Avec un filtre
+  (`?status=COMPLETED`), la route répond 200 : seules les courses non converties posent problème.
+- **À faire** : convertir les numéros existants (`FY-` → `WM-`, y compris les livraisons `FY-B2C-`) ou accepter les deux préfixes
+  à la lecture. Sans vraies données, rien à faire.
+- **Autre écart** : le Swagger documente `page` et `limit`, mais le contrôleur ne lit que `status` et renvoie tout l'historique.
+  L'app n'a pas de pagination pour l'instant.
 
 ### 6. Changement de numéro de téléphone sans vérification
 - `PATCH /api/users/:id/phone { newPhoneNumber }` modifie le numéro de connexion sans code SMS sur le nouveau numéro.
   Quiconque détient un jeton peut rediriger le compte. L'écran Profil de l'app appelle cette route.
 - **À faire** : exiger un code OTP envoyé au nouveau numéro (`send-otp` puis `verify-otp` avant le changement).
 
+### 7. La suppression du compte plante après avoir supprimé le profil
+- **Constat** : `DELETE /api/passengers/profile { password }` avec le bon mot de passe répond `500`, mais le profil est bien supprimé
+  (ensuite `GET /api/passengers/profile` répond 404 et la connexion échoue avec « Passenger profile not found not found »).
+- **Cause** : `passenger.routes.ts:219` appelle `user.deactivatePassengerProfile()`, méthode qui n'existe pas dans `User`
+  (il n'y a que `activatePassengerProfile`). L'indicateur `hasPassengerProfile` de l'utilisateur reste donc à `true`.
+- **À faire** : ajouter `deactivatePassengerProfile()` à `User` (et la traiter de façon atomique avec la suppression du profil).
+  Corriger aussi la faute dans le message : « not found not found ».
+- **Côté app** : en cas de 500, l'app vérifie si le profil existe encore et, s'il a disparu, déconnecte l'utilisateur.
 ### 8. La liste des codes promo disponibles expose des données internes
 - **Constat** : `GET /api/passenger/promo-codes` renvoie `PromoCode.toObject()` en entier au passager, dont `realCostAccrued`,
   `marginResidualPct`, `commissionBase`, `budgetedLossCampaign`, `sponsoredBudget`, `dailySpendingLimit`, `affiliateId`,
@@ -65,7 +78,8 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 | **Export des données personnelles** | rien | `POST /api/passengers/data-export`. Le bouton de l'app n'a pas d'effet réel. |
 | **FAQ du support** | rien | `GET /api/support/faq`. Contenu écrit dans l'app. |
 | **Tarif d'attente et franchise** affichés avant et pendant la course | `waitingFeePerMinute` en base, non exposé | exposer `waitingFeePerMinute`, `freeWaitingMinutes`, `pauseFreeMinutes`, `pauseFeePerMinute` dans `GET /rides/:id` (et dans l'estimation). L'app déduit le tarif de ce qui a déjà été facturé. |
-| **Délai d'arrivée du chauffeur** (« Chauffeur à 4 min ») | absent de `GET /rides/:id` | `driverEtaMinutes` et la position `driverLocation`. L'écran affiche « Chauffeur en route ». |
+| **Délai d'arrivée du chauffeur** (« Chauffeur à 4 min ») | absent de `GET /rides/:id` ; présent une seule fois dans l'événement WebSocket `ride:driver_en_route` (`etaToPickupSeconds`) | `driverEtaMinutes` et la position `driverLocation` dans `GET /rides/:id`, pour qu'un écran rouvert ou reconnecté les retrouve. L'écran affiche « Chauffeur en route ». |
+| **Livraison en temps réel** | le WebSocket n'envoie au passager que `b2c:driver:location` (salle `order:{id}`) | émettre aussi les changements de statut de la commande (coursier trouvé, colis récupéré, livré, annulé) dans `order:{id}`. L'app les écoutera comme pour la course ; en attendant elle interroge le suivi toutes les 3 s. |
 | **Recherche d'adresses** | aucun géocodage | `GET /api/places/search?q=` → `[{ id, name, address, lat, lng }]` limité au Bénin. L'app utilise Nominatim public (usage léger seulement). |
 | **Livraison** : encaissement à la livraison | rien (`B2cPaymentMethod` = CASH \| WALLET) | `codAmount` à la commande, encaissé par le coursier et reversé. |
 | **Livraison** : « le destinataire paie » | rien | `payer: SENDER \| RECIPIENT`. |
@@ -84,6 +98,10 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 
 ## 🟡 Améliorations
 
+- **Mot de passe oublié** : le code part par un événement que traite le *worker* (`npm run dev:worker` / `start:worker`). Sans lui, aucun SMS
+  n'est envoyé (contrairement à `send-otp`, synchrone). À prévoir dans le déploiement (`start:all`).
+- **Mot de passe oublié, numéro inconnu** : le back répond « un code a été envoyé » même sans compte (bien), mais la réponse du cas connu
+  contient `phoneNumber`, ce qui permet de distinguer les deux. À aligner.
 - **Codes promo, texte affiché** : `displayText` promet « 300 F offerts » alors que la remise réelle est plafonnée par le garde-fou de marge
   (137 F sur une course de 1 529 F). L'app affiche donc le prix réel (`finalEstimatedPrice`), pas le texte. Idéal : renvoyer la remise
   réelle dans la liste, ou un texte généré après plafonnement.

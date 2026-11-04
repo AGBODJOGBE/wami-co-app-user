@@ -14,6 +14,9 @@ class StubServer implements HttpClientAdapter {
   final _routes = <String, List<(int, Object?)>>{};
   final requests = <RequestOptions>[];
 
+  /// Appelé à chaque requête reçue, avant la réponse (ex. simuler un événement pendant une lecture).
+  void Function()? onRequest;
+
   /// Ajoute une réponse. Plusieurs réponses pour la même route sont rendues dans l'ordre, la dernière se répète.
   void on(String route, Object? body, {int status = 200}) {
     _routes.putIfAbsent(route, () => []).add((status, body));
@@ -47,6 +50,7 @@ class StubServer implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    onRequest?.call();
     final queue = _routes['${options.method} ${options.path}'];
     if (queue == null) {
       return ResponseBody.fromString(jsonEncode({'success': false, 'error': 'route inconnue'}), 404, headers: _json);

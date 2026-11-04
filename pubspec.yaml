@@ -25,6 +25,8 @@ dependencies:
   geolocator: ^13.0.2
   # Illustrations 3D et logos du design system
   flutter_svg: ^2.0.16
+  # Temps réel (Socket.io du back) : statut de la course sans attendre l'interrogation suivante
+  socket_io_client: ^3.1.6
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,6 @@
 import '../../../../core/error/failures.dart';
 import '../../../../core/usecase/usecase.dart';
+import '../../../../core/utils/password_policy.dart';
 import '../../../../core/utils/result.dart';
 import '../entities/app_settings.dart';
 import '../entities/user_profile.dart';
@@ -26,6 +27,39 @@ class UpdateProfile implements UseCase<UserProfile, UserProfile> {
       return const Err(ValidationFailure('Adresse e-mail invalide.'));
     }
     return _repo.updateProfile(p);
+  }
+}
+
+class ChangePasswordParams {
+  const ChangePasswordParams({required this.current, required this.next, required this.confirmation});
+  final String current;
+  final String next;
+  final String confirmation;
+}
+
+class ChangePassword implements UseCase<void, ChangePasswordParams> {
+  const ChangePassword(this._repo);
+  final AccountRepository _repo;
+
+  @override
+  Future<Result<void>> call(ChangePasswordParams p) async {
+    if (p.current.isEmpty) return const Err(ValidationFailure('Saisissez votre mot de passe actuel.'));
+    final weak = PasswordPolicy.check(p.next);
+    if (weak != null) return Err(ValidationFailure(weak));
+    if (p.next != p.confirmation) return const Err(ValidationFailure('Les deux mots de passe sont différents.'));
+    if (p.next == p.current) return const Err(ValidationFailure('Choisissez un mot de passe différent de l’actuel.'));
+    return _repo.changePassword(currentPassword: p.current, newPassword: p.next);
+  }
+}
+
+class DeleteAccount implements UseCase<void, String> {
+  const DeleteAccount(this._repo);
+  final AccountRepository _repo;
+
+  @override
+  Future<Result<void>> call(String password) async {
+    if (password.isEmpty) return const Err(ValidationFailure('Saisissez votre mot de passe pour confirmer.'));
+    return _repo.deleteAccount(password);
   }
 }
 

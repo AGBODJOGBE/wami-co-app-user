@@ -112,6 +112,7 @@ class AppRouter {
                   _full('support', (_) => const SupportPage()),
                   _full('referral', (_) => const ReferralPage()),
                   _full('privacy', (_) => const PrivacyPage()),
+                  _full('password', (_) => const ChangePasswordPage()),
                 ],
               ),
             ],
