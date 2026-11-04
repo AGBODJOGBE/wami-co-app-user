@@ -262,6 +262,12 @@ void main() {
       expect(offers.length, VehicleCategory.values.length);
       expect(offers.where((o) => o.recommended), hasLength(1));
       expect(offers.every((o) => o.price > 0), isTrue);
+      // Chauffeurs proches : inconnu, ou un nombre ; avec des chauffeurs, un délai d'arrivée est donné.
+      for (final o in offers) {
+        expect(o.nearbyDrivers == null || o.nearbyDrivers! >= 0, isTrue);
+        if ((o.nearbyDrivers ?? 0) > 0) expect(o.arrivalMinutes, isNotNull);
+        if (o.noDriverNearby) expect(o.arrivalMinutes, isNull);
+      }
 
       final id = await rides.requestRide(from, to, VehicleCategory.moto);
       final first = await rides.watchRide(id).first;

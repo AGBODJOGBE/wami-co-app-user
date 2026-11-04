@@ -29,7 +29,7 @@ class OfferTile extends StatelessWidget {
       selected: selected,
       button: true,
       label:
-          '${offer.category.label}, ${Fmt.fcfa(offer.price)}${offer.discount > 0 ? ', remise ${Fmt.fcfa(offer.discount)}' : ''}, ${offer.etaMinutes} minutes',
+          '${offer.category.label}, ${Fmt.fcfa(offer.price)}${offer.discount > 0 ? ', remise ${Fmt.fcfa(offer.discount)}' : ''}, ${_availability(offer)}',
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
@@ -64,7 +64,7 @@ class OfferTile extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '${offer.category.hint} · ${offer.etaMinutes} min · ${offer.category.seats} pl.',
+                      _subtitle(offer),
                       style: t.bodySmall,
                     ),
                   ],
@@ -89,6 +89,20 @@ class OfferTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Disponibilité d'une gamme, en texte : « chauffeur dans 3 min », « aucun chauffeur proche », ou rien si inconnue.
+String _availability(VehicleOffer offer) {
+  if (offer.noDriverNearby) return 'aucun chauffeur proche';
+  final minutes = offer.arrivalMinutes;
+  if (minutes == null) return '';
+  return minutes < 1 ? 'chauffeur à moins d’une minute' : 'chauffeur dans $minutes min';
+}
+
+String _subtitle(VehicleOffer offer) {
+  final availability = _availability(offer);
+  final parts = [offer.category.hint, if (availability.isNotEmpty) availability, '${offer.category.seats} pl.'];
+  return parts.join(' · ');
 }
 
 /// Carte du chauffeur.

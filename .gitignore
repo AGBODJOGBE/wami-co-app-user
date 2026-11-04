@@ -9,3 +9,6 @@ build/
 .idea/
 .vscode/
 coverage/
+
+# Sauvegarde locale de Redis (jamais à versionner)
+dump.rdb

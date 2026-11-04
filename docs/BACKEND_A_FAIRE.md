@@ -68,6 +68,13 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
   route d'administration.
 - **Côté app** : elle n'envoie jamais `recipientId`.
 
+### 10. Les positions exactes des chauffeurs sont publiques
+- **Constat** : `GET /api/passengers/rides/nearby-drivers?latitude=&longitude=&vehicleType=` n'exige aucun jeton (« Route PUBLIQUE — comportement
+  historique conservé » dans le code) et renvoie le `driverId`, la position exacte (`latitude`, `longitude`), la note et la distance de
+  chaque chauffeur disponible. N'importe qui peut donc suivre les chauffeurs d'une ville sans compte.
+- **À faire** : exiger l'authentification, ne pas renvoyer `driverId`, arrondir les positions (ou ne renvoyer que distance et délai d'arrivée).
+  L'app n'utilise que le nombre de chauffeurs et le plus petit `estimatedArrivalMin`.
+
 ---
 
 ## 🟠 Fonctions du mobile que le back ne gère pas

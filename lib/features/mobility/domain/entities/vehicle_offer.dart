@@ -34,7 +34,8 @@ class VehicleOffer extends Equatable {
   const VehicleOffer({
     required this.category,
     required this.price,
-    required this.etaMinutes,
+    this.arrivalMinutes,
+    this.nearbyDrivers,
     this.recommended = false,
     this.discount = 0,
   });
@@ -50,14 +51,21 @@ class VehicleOffer extends Equatable {
   /// Prix avant remise.
   int get fullPrice => price + discount;
 
-  /// Durée estimée du trajet (le back ne donne pas encore le délai d'arrivée du chauffeur à l'estimation).
-  final int etaMinutes;
+  /// Délai d'arrivée du chauffeur le plus proche, en minutes. `null` : inconnu (aucun chauffeur proche, ou
+  /// information indisponible).
+  final int? arrivalMinutes;
+
+  /// Nombre de chauffeurs disponibles autour du départ pour cette gamme (`null` : inconnu).
+  final int? nearbyDrivers;
+
+  /// Aucun chauffeur de cette gamme n'est disponible à proximité.
+  bool get noDriverNearby => nearbyDrivers == 0;
 
   /// Choix mis en avant par WAMI (meilleur rapport prix / délai).
   final bool recommended;
 
   @override
-  List<Object?> get props => [category, price, etaMinutes, recommended, discount];
+  List<Object?> get props => [category, price, arrivalMinutes, nearbyDrivers, recommended, discount];
 }
 
 /// Résultat d'une estimation : les prix, et le motif de refus du code promo s'il a été refusé.
