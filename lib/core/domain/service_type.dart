@@ -19,12 +19,13 @@ enum ServiceArt {
   String get assetPath => 'assets/illustrations/illustration-$file.svg';
 }
 
-/// Les quatre univers de la super app. Une nouvelle activité = une nouvelle valeur.
+/// Les cinq univers de la super app. Une nouvelle activité = une nouvelle valeur.
 enum ServiceType {
   mobility('Mobilité', 'Moto, auto, VIP', ServiceArt.moto, WamiColors.glowMobilite),
   delivery('Livraison', 'Colis en ville', ServiceArt.colis, WamiColors.glowLivraison),
   bus('Bus', 'Billets interurbains', ServiceArt.bus, WamiColors.glowBus),
-  lodging('Hébergement', 'Hôtel, chambre, appart.', ServiceArt.hotel, WamiColors.glowHebergement);
+  lodging('Hébergement', 'Hôtel, chambre, appart.', ServiceArt.hotel, WamiColors.glowHebergement),
+  intercity('Interurbain', 'Places entre villes', ServiceArt.auto, WamiColors.glowInterurbain);
 
   const ServiceType(this.label, this.tagline, this.art, this.glow);
   final String label;

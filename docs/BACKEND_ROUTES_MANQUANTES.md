@@ -37,6 +37,10 @@ Logique métier :
   les `recent` sont les destinations des courses terminées, sans doublon, 3 au maximum, la plus récente d'abord.
 - Les adresses renvoyées portent toujours des coordonnées : le raccourci lance directement l'estimation.
 
+> ⚠️ Le back a déjà un système de **trajets interurbains** (`/api/passenger/offers`), mais c'est autre chose que les **billets de bus** de cette section :
+> ce sont des places dans la voiture d'un chauffeur. L'app a un parcours séparé pour eux (« Interurbain »). Voir `BACKEND_A_FAIRE.md`, section « Trajets interurbains ».
+> Les billets de bus des compagnies (plan de sièges, QR, compagnies) restent à créer.
+
 ## 2. Bus — `lib/features/bus/data/datasources/bus_data_sources.dart`
 
 Parcours : recherche (départ, arrivée, date, voyageurs) → liste des départs (tri, comparatif de 2 à 3 départs) → plan des sièges →

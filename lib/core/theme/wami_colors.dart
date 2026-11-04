@@ -32,6 +32,7 @@ abstract final class WamiColors {
   static const glowLivraison = Color(0xFF5A82E6);
   static const glowBus = Color(0xFF50C8BE);
   static const glowHebergement = Color(0xFFFFBE78);
+  static const glowInterurbain = Color(0xFFB48CFF);
 
   // Statuts.
   static const success = Color(0xFF3DBE7E);

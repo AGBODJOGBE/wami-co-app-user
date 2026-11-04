@@ -20,6 +20,8 @@ import 'package:wami/features/app_update/data/datasources/app_update_data_source
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
 import 'package:wami/features/delivery/data/datasources/delivery_data_sources.dart';
 import 'package:wami/features/delivery/domain/entities/delivery.dart';
+import 'package:wami/features/intercity/data/datasources/intercity_data_sources.dart';
+import 'package:wami/features/intercity/domain/entities/intercity.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
 import 'package:wami/features/notifications/data/datasources/notifications_data_sources.dart';
 import 'package:wami/features/referral/data/datasources/referral_data_sources.dart';
@@ -326,6 +328,52 @@ void main() {
       } finally {
         await rides.cancelRide(id);
       }
+    },
+    skip: skip,
+  );
+
+  test(
+    'interurbain : recherche lue, réservation, double réservation refusée en français, annulation remboursée',
+    () async {
+      final intercity = IntercityApiDataSource(api);
+      final day = DateTime.now().add(const Duration(days: 2));
+      final offers = await intercity.search(IntercityQuery(from: 'Cotonou', to: 'Parakou', date: day));
+      expect(offers.every((o) => o.pricePerSeat > 0 && o.originCity == 'Cotonou'), isTrue);
+
+      // Le back ne renvoie pas l'identifiant des offres (voir docs/BACKEND_A_FAIRE.md) : la réservation se teste avec
+      // l'identifiant d'une offre connue, donnée en WAMI_LIVE_OFFER_ID.
+      final offerId = Platform.environment['WAMI_LIVE_OFFER_ID'];
+      if (offerId == null) return;
+      final known = offers.isEmpty ? null : offers.first;
+      final offer = IntercityOffer(
+        id: offerId,
+        number: known?.number ?? '',
+        vehicle: known?.vehicle ?? 'Confort',
+        originCity: 'Cotonou',
+        destinationCity: 'Parakou',
+        departure: day,
+        totalSeats: 4,
+        availableSeats: 4,
+        pricePerSeat: known?.pricePerSeat ?? 8000,
+      );
+      final booking = await intercity.book(offer, 2, IntercityPayment.cash);
+      try {
+        expect(booking.seats, 2);
+        expect(booking.total, offer.pricePerSeat * 2);
+        expect(booking.status, IntercityBookingStatus.confirmed);
+        await expectLater(
+          intercity.book(offer, 1, IntercityPayment.cash),
+          throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('déjà réservé'))),
+        );
+      } finally {
+        expect(await intercity.cancel(booking.id), offer.pricePerSeat * 2);
+      }
+      await expectLater(
+        intercity.cancel(booking.id),
+        throwsA(
+          isA<BusinessRuleException>().having((e) => e.message, 'message', contains('ne peut plus être annulée')),
+        ),
+      );
     },
     skip: skip,
   );
