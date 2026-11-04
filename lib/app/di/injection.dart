@@ -1,3 +1,4 @@
+import '../../core/app_info/app_info.dart';
 import '../../core/auth/current_session.dart';
 import '../../core/auth/session_store.dart';
 import '../../core/config/app_config.dart';
@@ -6,6 +7,7 @@ import '../../core/location/location_service.dart';
 import '../../core/location/place_geocoder.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
+import '../../core/system/url_opener.dart';
 import '../../core/network/auth_interceptor.dart';
 import '../../core/network/realtime_signals.dart';
 import '../../features/account/data/datasources/account_data_sources.dart';
@@ -19,6 +21,11 @@ import '../../features/account/presentation/cubit/support_cubit.dart';
 import '../../features/activities/data/activity_repository_impl.dart';
 import '../../features/activities/domain/activity.dart';
 import '../../features/activities/presentation/activities_page.dart';
+import '../../features/app_update/data/datasources/app_update_data_sources.dart';
+import '../../features/app_update/data/repositories/app_update_repository_impl.dart';
+import '../../features/app_update/domain/repositories/app_update_repository.dart';
+import '../../features/app_update/domain/usecases/check_app_version.dart';
+import '../../features/app_update/presentation/cubit/update_cubit.dart';
 import '../../features/auth/data/datasources/auth_data_sources.dart';
 import '../../features/auth/data/repositories/auth_repository_impl.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
@@ -93,6 +100,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
+  _appUpdate(fake, config.shouldCheckVersion);
   // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison, parrainage, notifications.
   // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
   // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
@@ -107,6 +115,18 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   _referral(fake);
   _account(fake);
   _activities(fake);
+}
+
+void _appUpdate(bool fake, bool enabled) {
+  sl
+    ..registerLazySingleton<AppInfoSource>(() => fake ? const FixedAppInfoSource() : const PlatformAppInfoSource())
+    ..registerLazySingleton<UrlOpener>(() => const SystemUrlOpener())
+    ..registerLazySingleton<AppUpdateRemoteDataSource>(
+      () => fake ? AppUpdateFakeDataSource(sl()) : AppUpdateApiDataSource(sl(), sl()),
+    )
+    ..registerLazySingleton<AppUpdateRepository>(() => AppUpdateRepositoryImpl(sl()))
+    ..registerLazySingleton(() => CheckAppVersion(sl()))
+    ..registerLazySingleton(() => UpdateCubit(sl(), sl(), enabled: enabled));
 }
 
 void _auth(bool fake) {

@@ -115,6 +115,15 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 
 ## 🟡 Améliorations
 
+- **Mise à jour obligatoire, identifiants incohérents** : l'app s'identifie par `appType=PASSENGER` + `platform` (route `check-version`).
+  Les configurations de version ne portent pas les mêmes identifiants de paquet partout : `com.wamico.client` dans le seed, `com.foryou.client`
+  (et des liens `foryou-passenger`) dans une base créée avant le renommage — le seed ne remplace pas l'existant — et `bj.wami.wami` dans l'app.
+  Résultat : `GET /api/app/version?package=bj.wami.wami` répond 404. À aligner avant la mise en ligne (migration des configurations, vrais liens
+  Play Store / App Store).
+- **Mise à jour obligatoire, version de départ** : le seed fixe `minSupportedVersion` à `1.0.0`. Une version de développement (`0.1.0`) est donc
+  refusée : l'app se bloque sur l'écran de mise à jour. Pour développer contre un back réel : `--dart-define=WAMI_CHECK_VERSION=false`,
+  ou publier la version 1.0.0 côté app.
+
 - **Mot de passe oublié** : le code part par un événement que traite le *worker* (`npm run dev:worker` / `start:worker`). Sans lui, aucun SMS
   n'est envoyé (contrairement à `send-otp`, synchrone). À prévoir dans le déploiement (`start:all`).
 - **Mot de passe oublié, numéro inconnu** : le back répond « un code a été envoyé » même sans compte (bien), mais la réponse du cas connu
