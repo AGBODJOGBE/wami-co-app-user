@@ -43,7 +43,8 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
 | Activités | `GET /api/passenger/delivery` | Livraisons seulement : le back n'expose pas l'historique des courses. |
 | Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
-| Mobilité | `POST /api/passenger/rides/estimate`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
+| Parrainage | `GET /api/passenger/referrals/my`, `my-pending`, `POST /api/passenger/referrals/apply` | Écran « Parrainer un proche » : code, filleuls, utiliser le code d'un proche. La récompense est créditée par le back à la première course du filleul. |
+| Mobilité | `POST /api/passenger/rides/estimate` (avec `promoCode`), `GET /api/passenger/promo-codes`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi par polling toutes les 3 s (résilient aux coupures). Paiement `MIXED` : portefeuille, puis espèces. |
 
 **Encore simulés** (pas d'équivalent côté back, ou décision produit à prendre) : accueil, bus, hébergement, paramètres.
 

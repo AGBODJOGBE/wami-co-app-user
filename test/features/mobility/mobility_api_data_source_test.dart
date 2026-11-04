@@ -200,8 +200,10 @@ void main() {
           'promoError': 'Ce code promo est réservé aux clients actifs.',
         },
       });
-      expect((await rides.estimate(_from, _to, promoCode: 'X')).promoError,
-          'Ce code promo est réservé aux clients actifs.',);
+      expect(
+        (await rides.estimate(_from, _to, promoCode: 'X')).promoError,
+        'Ce code promo est réservé aux clients actifs.',
+      );
     });
 
     test('codes disponibles : seuls le code et son texte sont retenus', () async {

@@ -74,9 +74,9 @@ class AccountPage extends StatelessWidget {
                     ListTile(
                       leading: const IconBadge(Icons.card_giftcard_rounded),
                       title: Text('Parrainer un proche', style: t.titleSmall),
-                      subtitle: Text('Récompense : [à valider]', style: t.bodySmall),
+                      subtitle: Text('Votre code et vos filleuls', style: t.bodySmall),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {},
+                      onTap: () => context.push(Routes.accountReferral),
                     ),
                     ListTile(
                       leading: IconBadge(Icons.logout_rounded, color: context.wami.danger),

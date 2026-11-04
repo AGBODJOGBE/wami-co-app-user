@@ -17,6 +17,7 @@ import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
 import 'package:wami/features/delivery/data/datasources/delivery_data_sources.dart';
 import 'package:wami/features/delivery/domain/entities/delivery.dart';
 import 'package:wami/features/mobility/data/datasources/mobility_remote_data_source.dart';
+import 'package:wami/features/referral/data/datasources/referral_data_sources.dart';
 import 'package:wami/features/mobility/domain/entities/place.dart';
 import 'package:wami/features/mobility/domain/entities/ride.dart';
 import 'package:wami/features/mobility/domain/entities/vehicle_offer.dart';
@@ -159,6 +160,49 @@ void main() {
       }
       final list = await ActivityApiDataSource(api).fetch();
       expect(list.first.status.name, 'cancelled');
+    },
+    skip: skip,
+  );
+
+  test(
+    'code promo : un code inconnu est refusé en français, un code proposé est appliqué ou refusé avec un motif',
+    () async {
+      final rides = MobilityApiDataSource(api, session, _FixedGeocoder(), pollEvery: const Duration(milliseconds: 300));
+
+      final unknown = await rides.estimate(from, to, promoCode: 'CODEINCONNU');
+      expect(unknown.promoError, 'Code promo inconnu.');
+      expect(unknown.offers.every((o) => o.discount == 0), isTrue);
+
+      final promos = await rides.availablePromos();
+      expect(promos.every((p) => p.code.isNotEmpty), isTrue);
+      if (promos.isNotEmpty) {
+        final quote = await rides.estimate(from, to, promoCode: promos.first.code);
+        // Soit une remise réelle, soit un refus expliqué (ex. réservé aux nouveaux clients).
+        expect(quote.offers.any((o) => o.discount > 0) || (quote.promoError ?? '').isNotEmpty, isTrue);
+        for (final o in quote.offers.where((o) => o.discount > 0)) {
+          expect(o.price, lessThan(o.fullPrice));
+        }
+      }
+    },
+    skip: skip,
+  );
+
+  test(
+    'parrainage : code et filleuls lus, code inconnu et propre code refusés',
+    () async {
+      final referral = ReferralApiDataSource(api);
+      final overview = await referral.overview();
+      expect(overview.code, isNotEmpty);
+      expect(overview.total, greaterThanOrEqualTo(overview.pendingCount + overview.validatedCount));
+
+      await expectLater(
+        referral.apply('ZZZ999'),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', 'Code de parrainage inconnu.')),
+      );
+      await expectLater(
+        referral.apply(overview.code),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('propre code'))),
+      );
     },
     skip: skip,
   );
