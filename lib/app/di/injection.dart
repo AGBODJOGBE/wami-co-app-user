@@ -51,6 +51,11 @@ import '../../features/mobility/data/repositories/mobility_repository_impl.dart'
 import '../../features/mobility/domain/repositories/mobility_repository.dart';
 import '../../features/mobility/domain/usecases/mobility_usecases.dart';
 import '../../features/mobility/presentation/bloc/ride_bloc.dart';
+import '../../features/notifications/data/datasources/notifications_data_sources.dart';
+import '../../features/notifications/data/repositories/notifications_repository_impl.dart';
+import '../../features/notifications/domain/repositories/notifications_repository.dart';
+import '../../features/notifications/domain/usecases/notifications_usecases.dart';
+import '../../features/notifications/presentation/cubit/notifications_cubit.dart';
 import '../../features/referral/data/datasources/referral_data_sources.dart';
 import '../../features/referral/data/repositories/referral_repository_impl.dart';
 import '../../features/referral/domain/repositories/referral_repository.dart';
@@ -88,7 +93,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
-  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison, parrainage.
+  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison, parrainage, notifications.
   // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
   // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
   const stillSimulated = true;
@@ -98,6 +103,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   _bus(stillSimulated);
   _lodging(stillSimulated);
   _wallet(fake);
+  _notifications(fake);
   _referral(fake);
   _account(fake);
   _activities(fake);
@@ -224,6 +230,17 @@ void _wallet(bool fake) {
     ..registerFactory(
       () => WalletBloc(getOverview: sl(), getSources: sl(), getBeneficiaries: sl(), topUp: sl(), transfer: sl()),
     );
+}
+
+void _notifications(bool fake) {
+  sl
+    ..registerLazySingleton<NotificationsRemoteDataSource>(
+      () => fake ? NotificationsFakeDataSource(sl()) : NotificationsApiDataSource(sl()),
+    )
+    ..registerLazySingleton<NotificationsRepository>(() => NotificationsRepositoryImpl(sl()))
+    ..registerLazySingleton(() => GetNotifications(sl()))
+    ..registerLazySingleton(() => MarkNotificationRead(sl()))
+    ..registerFactory(() => NotificationsCubit(sl(), sl()));
 }
 
 void _referral(bool fake) {

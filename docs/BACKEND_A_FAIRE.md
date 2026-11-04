@@ -61,6 +61,13 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 - **À faire** : renvoyer un objet public : `id`, `code`, `displayText`, `endDate`, `discountType`, `discountValue`, `minOrderAmount`.
   L'app n'utilise que `code` et `displayText`.
 
+### 9. Les notifications d'un utilisateur sont lisibles par tous les autres
+- **Constat** : `GET /api/notifications?recipientId=<id d'un autre>` rend les notifications de cet autre utilisateur, avec n'importe quel jeton
+  valide (`const recipientId = req.query.recipientId || req.userId` dans `GetNotificationHistoryController`). Testé en réel.
+- **À faire** : ignorer `recipientId` pour les non-administrateurs et lire uniquement `req.userId`. Réserver l'usage de `recipientId` à une
+  route d'administration.
+- **Côté app** : elle n'envoie jamais `recipientId`.
+
 ---
 
 ## 🟠 Fonctions du mobile que le back ne gère pas
@@ -89,6 +96,9 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 | **Livraison** : annulation depuis le suivi | `DELETE /api/passenger/delivery/:id` existe | pas de bouton « annuler » dans l'écran de suivi de l'app : à ajouter côté mobile. |
 | **Accueil** : bannières promotionnelles | codes promo existent, pas de flux d'accueil | `GET /api/passenger/home` → `{ promos[] }`. |
 | **Activités** : historique unifié (courses, livraisons, bus, hébergement) | historiques séparés par module | `GET /api/passenger/activities` paginé, ou l'app agrège elle-même. |
+| **Notifications** : nombre de non lues, « tout marquer comme lu » | `GET /api/notifications` ne donne pas de compteur ; pas de route pour tout marquer | `unreadCount` dans la réponse, `POST /api/notifications/read-all`. La cloche compte seulement les non lues déjà chargées (première page). |
+| **Notifications** : une seule ligne par événement | une notification par canal (SMS, push, temps réel) pour le même événement | `GET /api/notifications?channel=PUSH`, ou une notification « boîte de réception » distincte. L'app regroupe côté mobile (même type, même objet lié, à moins d'une minute). |
+| **Notifications push** (jeton FCM) | `PATCH /api/passengers/fcm-token` fonctionne (testé) | côté mobile, il manque Firebase (`google-services.json`, `GoogleService-Info.plist`) : à fournir pour recevoir les notifications hors de l'app. |
 | **Paramètres** (langue fr/fon/yoruba, notifications) | rien | `GET/PUT /api/passengers/settings`. Stockés sur l'appareil pour l'instant (non persistés après redémarrage). |
 | **Messagerie, appel, partage de trajet, urgence** | rien (« bientôt » dans l'app) | à définir. |
 | **Bus** : recherche, sièges, billets QR | aucun module | module complet. |

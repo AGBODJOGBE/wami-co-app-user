@@ -31,6 +31,8 @@ import '../../features/mobility/presentation/pages/ride_offers_page.dart';
 import '../../features/mobility/presentation/pages/ride_rating_page.dart';
 import '../../features/mobility/presentation/pages/ride_tracking_page.dart';
 import '../../features/wallet/presentation/pages/wallet_operation_pages.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../features/notifications/presentation/widgets/notification_bell.dart';
 import '../../features/referral/presentation/pages/referral_page.dart';
 import '../../features/wallet/presentation/pages/wallet_page.dart';
 import '../../core/di/service_locator.dart';
@@ -64,13 +66,14 @@ class AppRouter {
         path: Routes.auth,
         builder: (_, __) => BlocProvider(create: (_) => sl<SignInCubit>(), child: const SignInPage()),
       ),
+      GoRoute(path: Routes.notifications, builder: (_, __) => const NotificationsPage()),
 
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) => AppShell(navigationShell: shell),
         branches: [
           StatefulShellBranch(
             routes: [
-              GoRoute(path: Routes.home, builder: (_, __) => const HomePage()),
+              GoRoute(path: Routes.home, builder: (_, __) => const HomePage(headerAction: NotificationBell())),
             ],
           ),
           StatefulShellBranch(
