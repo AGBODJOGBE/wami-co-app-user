@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wami/core/auth/auth_session.dart';
+import 'package:wami/core/app_info/app_info.dart';
 import 'package:wami/core/auth/current_session.dart';
 import 'package:wami/core/config/app_config.dart';
 import 'package:wami/core/error/exceptions.dart';
@@ -15,6 +16,7 @@ import 'package:wami/core/network/auth_interceptor.dart';
 import 'package:wami/core/network/realtime_signals.dart';
 import 'package:wami/features/account/data/datasources/account_data_sources.dart';
 import 'package:wami/features/activities/data/activity_repository_impl.dart';
+import 'package:wami/features/app_update/data/datasources/app_update_data_sources.dart';
 import 'package:wami/features/auth/data/datasources/auth_data_sources.dart';
 import 'package:wami/features/delivery/data/datasources/delivery_data_sources.dart';
 import 'package:wami/features/delivery/domain/entities/delivery.dart';
@@ -249,6 +251,23 @@ void main() {
       expect(page.items.every((n) => n.id.isNotEmpty && n.type.isNotEmpty), isTrue);
       if (page.items.isNotEmpty) await notifications.markAsRead(page.items.first.id);
       await notifications.markAsRead('notification-inconnue');
+    },
+    skip: skip,
+  );
+
+  test(
+    'version de l’application : une version récente est à jour, une très ancienne a une mise à jour',
+    () async {
+      AppUpdateApiDataSource source(String version) =>
+          AppUpdateApiDataSource(api, FixedAppInfoSource(AppInfo(version: version, platform: 'ANDROID')));
+
+      final recent = await source('999.0.0').check();
+      expect(recent.updateAvailable, isFalse);
+      expect(recent.forceUpdate, isFalse);
+
+      final old = await source('0.0.1').check();
+      expect(old.updateAvailable, isTrue);
+      expect(old.latestVersion, isNotEmpty);
     },
     skip: skip,
   );

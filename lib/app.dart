@@ -7,6 +7,8 @@ import 'core/theme/wami_theme.dart';
 import 'features/account/domain/entities/app_settings.dart';
 import 'features/account/presentation/cubit/profile_cubit.dart';
 import 'features/account/presentation/cubit/settings_cubit.dart';
+import 'features/app_update/presentation/cubit/update_cubit.dart';
+import 'features/app_update/presentation/widgets/update_gate.dart';
 import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/notifications/presentation/cubit/notifications_cubit.dart';
 import 'features/wallet/presentation/bloc/wallet_bloc.dart';
@@ -25,6 +27,7 @@ class WamiApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: sl<AuthCubit>()),
+        BlocProvider.value(value: sl<UpdateCubit>()),
         BlocProvider(create: (_) => sl<SettingsCubit>()..load()),
         // Profil et portefeuille ne se chargent qu'une fois connecté : voir _SessionBridge.
         BlocProvider(create: (_) => sl<ProfileCubit>()),
@@ -42,6 +45,8 @@ class WamiApp extends StatelessWidget {
               darkTheme: WamiTheme.dark(),
               themeMode: _toThemeMode(state.settings.themeMode),
               routerConfig: sl<AppRouter>().config,
+              // Par-dessus tous les écrans, connexion comprise : une version trop ancienne ne doit rien laisser faire.
+              builder: (context, child) => UpdateGate(child: child ?? const SizedBox.shrink()),
             );
           },
         ),

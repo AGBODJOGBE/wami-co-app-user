@@ -31,7 +31,7 @@ flutter analyze
 flutter test
 ```
 
-Autre réglage : `--dart-define=WAMI_GEOCODER_URL=…` (service de recherche d'adresses, voir plus bas).
+Autres réglages : `--dart-define=WAMI_CHECK_VERSION=true|false` (vérification de version, par défaut active seulement avec le vrai back), `--dart-define=WAMI_GEOCODER_URL=…` (service de recherche d'adresses, voir plus bas).
 
 `WAMI_API_URL` s'écrit avec ou sans `/api` final, les deux marchent. Le `http` n'est autorisé qu'en debug,
 vers `10.0.2.2`, `localhost` et `127.0.0.1` (`android/app/src/debug/res/xml/network_security_config.xml`) ;
@@ -50,6 +50,7 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}`, `PUT /api/passengers/password`, `DELETE /api/passengers/profile` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
 | Activités | `GET /api/passengers/rides`, `GET /api/passenger/delivery` | Courses et livraisons réunies. Si l'historique des courses échoue côté serveur, les livraisons restent affichées. |
 | Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |
+| Mise à jour | `GET /api/app-config/check-version` | Vérifiée au démarrage et au retour dans l'app (au plus une fois par 30 min). Version trop ancienne : écran bloquant avec lien vers le magasin. Version plus récente : rappel que l'on peut repousser. Une panne de la vérification ne bloque jamais. Désactivable : `--dart-define=WAMI_CHECK_VERSION=false`. |
 | Notifications | `GET /api/notifications`, `PATCH /api/notifications/:id/read` | Cloche de l'accueil avec pastille, liste groupée par jour. Un même événement notifié sur plusieurs canaux n'apparaît qu'une fois. Pas encore de notifications push (Firebase à configurer). |
 | Parrainage | `GET /api/passenger/referrals/my`, `my-pending`, `POST /api/passenger/referrals/apply` | Écran « Parrainer un proche » : code, filleuls, utiliser le code d'un proche. La récompense est créditée par le back à la première course du filleul. |
 | Mobilité | `POST /api/passenger/rides/estimate` (avec `promoCode`), `GET /api/passenger/promo-codes`, `GET /api/passengers/rides/nearby-drivers`, `POST /api/passenger/rides`, `GET/DELETE /api/passenger/rides/:id`, `POST …/rating` | Suivi en temps réel par WebSocket (salle `ride:{id}`), avec polling de secours (voir plus bas). Paiement `MIXED` : portefeuille, puis espèces. |

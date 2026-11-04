@@ -21,6 +21,9 @@ dependencies:
   dio: ^5.7.0
   # Stockage sécurisé du jeton (trousseau iOS / Keystore Android)
   flutter_secure_storage: ^9.2.2
+  # Version installée de l'application et ouverture de la fiche du magasin
+  package_info_plus: ^8.1.2
+  url_launcher: ^6.3.1
   # Position du téléphone (départ des courses)
   geolocator: ^13.0.2
   # Illustrations 3D et logos du design system
