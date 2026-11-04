@@ -11,6 +11,7 @@ abstract interface class WalletRemoteDataSource {
   Future<List<Beneficiary>> beneficiaries();
   Future<WalletOverview> topUp(int amount, String phone);
   Future<WalletOverview> transfer(String recipientPhone, int amount, String? note);
+  Future<Withdrawal> withdraw(WithdrawRequest request);
 }
 
 /// Routes `/api/wallets/:walletId/*` et `/api/payment/status/*` du back wami-co.
@@ -45,6 +46,7 @@ class WalletApiDataSource implements WalletRemoteDataSource {
         // Pas de programme de points côté back pour l'instant.
         points: 0,
         holder: _session.value?.fullName ?? '',
+        affiliateBalance: (results[0]['affiliateBalance'] as num?)?.toInt() ?? 0,
       ),
       transactions: (results[1]['transactions'] as List<dynamic>? ?? const [])
           .cast<Map<String, dynamic>>()
@@ -136,6 +138,53 @@ class WalletApiDataSource implements WalletRemoteDataSource {
     return overview();
   }
 
+  /// Pour un wallet passager, le retrait puise dans les gains d'affilié (jamais dans le solde dépensable).
+  @override
+  Future<Withdrawal> withdraw(WithdrawRequest request) async {
+    try {
+      final json = await _api.post(
+        '$_base/withdraw',
+        body: {
+          'amount': request.amount,
+          'method': request.method.api,
+          'recipientDetails': switch (request.method) {
+            WithdrawMethod.mobileMoney => {'phone': request.phone},
+            WithdrawMethod.bank => {
+                'bankName': request.bankName,
+                'accountName': request.accountName,
+                'iban': request.iban,
+              },
+          },
+        },
+      );
+      return Withdrawal(
+        id: json['withdrawalId'] as String? ?? '',
+        amount: (json['amount'] as num?)?.toInt() ?? request.amount,
+        message: json['message'] as String?,
+      );
+    } on BusinessRuleException catch (e) {
+      throw _frenchWithdrawalError(e);
+    }
+  }
+
+  BusinessRuleException _frenchWithdrawalError(BusinessRuleException e) {
+    final m = (e.message ?? '').toLowerCase();
+    final minimum = RegExp(r'is (\d+) fcfa').firstMatch(m);
+    if (m.contains('minimum withdrawal') && minimum != null) {
+      return BusinessRuleException('rejected', 'Montant minimum : ${minimum.group(1)} F.');
+    }
+    if (m.contains('insufficient')) {
+      return const BusinessRuleException('rejected', 'Vous ne pouvez retirer que vos gains d’affilié disponibles.');
+    }
+    if (m.contains('already in progress')) {
+      return const BusinessRuleException('rejected', 'Un retrait est déjà en cours de traitement.');
+    }
+    if (m.contains('cannot be withdrawn')) {
+      return const BusinessRuleException('rejected', 'Ce portefeuille ne permet pas de retrait.');
+    }
+    return e;
+  }
+
   /// Le back répond en anglais : on traduit les refus que l'utilisateur peut rencontrer.
   BusinessRuleException _frenchTransferError(BusinessRuleException e) {
     final m = (e.message ?? '').toLowerCase();
@@ -184,6 +233,7 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
   final CurrentSession _session;
 
   int _balance = 25000;
+  int _affiliate = 18000;
   int _seq = 0;
   late final List<WalletTransaction> _txs = [
     WalletTransaction(
@@ -210,7 +260,12 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
   ];
 
   WalletOverview _snapshot() => WalletOverview(
-        wallet: Wallet(balance: _balance, points: 320, holder: _session.value?.fullName ?? 'Gilexe AGBODJOGBE'),
+        wallet: Wallet(
+          balance: _balance,
+          points: 320,
+          holder: _session.value?.fullName ?? 'Gilexe AGBODJOGBE',
+          affiliateBalance: _affiliate,
+        ),
         transactions: List.unmodifiable(_txs),
       );
 
@@ -286,5 +341,19 @@ class WalletFakeDataSource implements WalletRemoteDataSource {
       ),
     );
     return _snapshot();
+  }
+
+  @override
+  Future<Withdrawal> withdraw(WithdrawRequest request) async {
+    await _fake.latency(1.2);
+    if (request.amount > _affiliate) {
+      throw const BusinessRuleException('rejected', 'Vous ne pouvez retirer que vos gains d’affilié disponibles.');
+    }
+    _affiliate -= request.amount;
+    return Withdrawal(
+      id: _fake.reference(),
+      amount: request.amount,
+      message: 'Votre demande de retrait est en cours de traitement.',
+    );
   }
 }

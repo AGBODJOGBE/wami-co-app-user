@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -427,30 +428,220 @@ class WalletSuccessPage extends StatelessWidget {
     final state = context.watch<WalletBloc>().state;
     final op = state.lastOperation;
     final transfer = op?.kind == WalletOperationKind.transfer;
+    final withdraw = op?.kind == WalletOperationKind.withdraw;
     return WamiScreen(
       showBack: false,
       body: WamiSuccessView(
-        positive: transfer,
+        positive: transfer || withdraw,
         icon: Icons.check_rounded,
-        title: transfer ? 'Transfert envoyé' : 'Recharge réussie',
+        title: withdraw
+            ? 'Demande de retrait envoyée'
+            : transfer
+                ? 'Transfert envoyé'
+                : 'Recharge réussie',
         message: op == null
             ? ''
-            : transfer
-                ? '${op.counterpart} a reçu ${Fmt.fcfa(op.amount)}.'
-                : '${Fmt.fcfa(op.amount)} ajoutés à votre portefeuille.',
+            : withdraw
+                ? '${Fmt.fcfa(op.amount)} sont en cours de traitement. Vous serez prévenu quand le virement est fait.'
+                : transfer
+                    ? '${op.counterpart} a reçu ${Fmt.fcfa(op.amount)}.'
+                    : '${Fmt.fcfa(op.amount)} ajoutés à votre portefeuille.',
         children: [
           GlassCard(
             child: Column(
               children: [
-                const SectionLabel('Nouveau solde'),
+                SectionLabel(withdraw ? 'Gains d’affilié restants' : 'Nouveau solde'),
                 const SizedBox(height: 4),
-                NumberText(Fmt.fcfa(state.balance), size: 26),
+                NumberText(Fmt.fcfa(withdraw ? state.affiliateBalance : state.balance), size: 26),
               ],
             ),
           ),
         ],
       ),
       bottom: WamiPrimaryButton(label: 'Retour au portefeuille', onPressed: () => context.go(Routes.wallet)),
+    );
+  }
+}
+
+/// Retrait des gains d'affilié vers Mobile Money ou un compte bancaire.
+///
+/// Le solde dépensable (courses, livraisons) ne se retire pas : seuls les gains d'affilié le sont.
+class WithdrawPage extends StatefulWidget {
+  const WithdrawPage({super.key});
+
+  @override
+  State<WithdrawPage> createState() => _WithdrawPageState();
+}
+
+class _WithdrawPageState extends State<WithdrawPage> {
+  final _amount = TextEditingController();
+  final _phone = TextEditingController();
+  final _bank = TextEditingController();
+  final _holder = TextEditingController();
+  final _iban = TextEditingController();
+  WithdrawMethod _method = WithdrawMethod.mobileMoney;
+
+  /// Le numéro du compte est proposé d'office ; « autre numéro » le remplace.
+  bool _other = false;
+
+  @override
+  void dispose() {
+    for (final c in [_amount, _phone, _bank, _holder, _iban]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  int get _value => int.tryParse(_amount.text.trim()) ?? 0;
+
+  WithdrawRequest _request() => WithdrawRequest(
+        amount: _value,
+        method: _method,
+        phone: _other ? BeninPhone.toInternational(_phone.text) : sl<CurrentSession>().value?.phone,
+        bankName: _bank.text.trim(),
+        accountName: _holder.text.trim(),
+        iban: _iban.text.trim(),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<WalletBloc, WalletState>(
+      listenWhen: (a, b) => a.operationStatus != b.operationStatus,
+      listener: (context, state) {
+        if (state.operationStatus == LoadStatus.ready) context.pushReplacement(Routes.walletSuccess);
+        if (state.operationStatus == LoadStatus.failure) showWamiMessage(context, state.failure!.message);
+      },
+      builder: (context, state) {
+        final t = Theme.of(context).textTheme;
+        final available = state.affiliateBalance;
+        final account = sl<CurrentSession>().value?.phone;
+        if (available <= 0) {
+          return WamiScreen(
+            title: 'Retirer',
+            body: Gap(
+              children: [
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Aucun gain à retirer', style: t.titleSmall),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Seuls les gains d’affilié (commissions de votre code promo) se retirent. '
+                        'L’argent de votre portefeuille sert à payer vos courses et livraisons.',
+                        style: t.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            bottom: WamiPrimaryButton(label: 'Retour au portefeuille', onPressed: () => context.go(Routes.wallet)),
+          );
+        }
+        final loading = state.operationStatus == LoadStatus.loading;
+        return WamiScreen(
+          title: 'Retirer mes gains',
+          body: Gap(
+            children: [
+              GlassCard(
+                child: Row(
+                  children: [
+                    Expanded(child: Text('Gains d’affilié disponibles', style: t.titleSmall)),
+                    NumberText(Fmt.fcfa(available), size: 18),
+                  ],
+                ),
+              ),
+              WamiTextField(
+                hint: 'Montant en FCFA',
+                label: 'Montant à retirer',
+                icon: Icons.payments_outlined,
+                controller: _amount,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+              ),
+              Row(
+                children: [
+                  for (final v in [available ~/ 2, available])
+                    if (v >= _method.defaultMinimum) ...[
+                      WamiChip(
+                        label: v == available ? 'Tout · ${Fmt.fcfa(v)}' : Fmt.fcfa(v),
+                        selected: _value == v,
+                        onTap: () => setState(() => _amount.text = '$v'),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                ],
+              ),
+              const SectionLabel('Vers'),
+              for (final m in WithdrawMethod.values)
+                WamiOptionTile(
+                  title: m.label,
+                  subtitle: 'Minimum ${Fmt.fcfa(m.defaultMinimum)}',
+                  selected: _method == m,
+                  onTap: () => setState(() => _method = m),
+                  leading:
+                      IconBadge(m == WithdrawMethod.bank ? Icons.account_balance_rounded : Icons.phone_android_rounded),
+                ),
+              if (_method == WithdrawMethod.mobileMoney) ...[
+                if (account != null)
+                  WamiOptionTile(
+                    title: 'Numéro de mon compte',
+                    subtitle: BeninPhone.display(account),
+                    selected: !_other,
+                    onTap: () => setState(() => _other = false),
+                    leading: const IconBadge(Icons.phone_android_rounded),
+                  ),
+                WamiOptionTile(
+                  title: 'Autre numéro Mobile Money',
+                  subtitle: 'Saisir un numéro',
+                  selected: _other || account == null,
+                  onTap: () => setState(() => _other = true),
+                  leading: const IconBadge(Icons.dialpad_rounded),
+                ),
+                if (_other || account == null)
+                  WamiTextField(
+                    hint: '01 97 12 34 56',
+                    icon: Icons.phone_android_rounded,
+                    prefixText: '${BeninPhone.countryCode} ',
+                    controller: _phone,
+                    keyboardType: TextInputType.phone,
+                    onChanged: (_) => setState(() {}),
+                  ),
+              ] else ...[
+                WamiTextField(
+                  hint: 'Nom de la banque',
+                  label: 'Banque',
+                  icon: Icons.account_balance_rounded,
+                  controller: _bank,
+                ),
+                WamiTextField(
+                  hint: 'Titulaire du compte',
+                  label: 'Titulaire',
+                  icon: Icons.person_outline_rounded,
+                  controller: _holder,
+                ),
+                WamiTextField(
+                  hint: 'BJ00 0000 0000 0000',
+                  label: 'IBAN',
+                  icon: Icons.numbers_rounded,
+                  controller: _iban,
+                ),
+              ],
+              Text(
+                'Le montant est réservé tout de suite. Le virement est fait ensuite par l’équipe WAMI.',
+                style: t.bodySmall,
+              ),
+            ],
+          ),
+          bottom: WamiPrimaryButton(
+            label: _value > 0 ? 'Retirer ${Fmt.fcfa(_value)}' : 'Retirer',
+            loading: loading,
+            onPressed: _value > 0 ? () => context.read<WalletBloc>().add(WalletWithdrawRequested(_request())) : null,
+          ),
+        );
+      },
     );
   }
 }

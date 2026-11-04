@@ -90,6 +90,7 @@ class AppRouter {
                 builder: (_, __) => const WalletPage(),
                 routes: [
                   _full('top-up', (_) => const TopUpPage()),
+                  _full('withdraw', (_) => const WithdrawPage()),
                   _full(
                     'transfer',
                     (_) => const TransferPage(),

@@ -24,4 +24,7 @@ class WalletRepositoryImpl implements WalletRepository {
   @override
   Future<Result<WalletOverview>> transfer({required String recipientPhone, required int amount, String? note}) =>
       guard(() => _remote.transfer(recipientPhone, amount, note));
+
+  @override
+  Future<Result<Withdrawal>> withdraw(WithdrawRequest request) => guard(() => _remote.withdraw(request));
 }

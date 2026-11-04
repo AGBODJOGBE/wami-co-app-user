@@ -68,9 +68,41 @@ class WalletPage extends StatelessWidget {
                         onTap: () => context.push(Routes.walletTransfer),
                       ),
                       _Action(icon: Icons.qr_code_2_rounded, label: 'Payer', onTap: () {}),
-                      _Action(icon: Icons.file_download_outlined, label: 'Retirer', onTap: () {}),
+                      _Action(
+                        icon: Icons.file_download_outlined,
+                        label: 'Retirer',
+                        onTap: () => context.push(Routes.walletWithdraw),
+                      ),
                     ],
                   ),
+                  if (o.wallet.affiliateBalance > 0) ...[
+                    const SizedBox(height: 14),
+                    GlassCard(
+                      onTap: () => context.push(Routes.walletWithdraw),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.savings_outlined),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Gains d’affilié', style: Theme.of(context).textTheme.titleSmall),
+                                Text(
+                                  'À retirer, non utilisables pour payer',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          NumberText(
+                            state.balanceHidden ? '••••' : Fmt.fcfa(o.wallet.affiliateBalance),
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   SectionLabel(
                     'Dernières opérations',

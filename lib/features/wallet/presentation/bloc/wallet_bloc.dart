@@ -55,9 +55,16 @@ final class WalletTransferRequested extends WalletEvent {
   List<Object?> get props => [recipientPhone, amount, note];
 }
 
+final class WalletWithdrawRequested extends WalletEvent {
+  const WalletWithdrawRequested(this.request);
+  final WithdrawRequest request;
+  @override
+  List<Object?> get props => [request];
+}
+
 // ─── État ────────────────────────────────────────────────────────────────────
 
-enum WalletOperationKind { topUp, transfer }
+enum WalletOperationKind { topUp, transfer, withdraw }
 
 class WalletOperation extends Equatable {
   const WalletOperation({required this.kind, required this.amount, this.counterpart});
@@ -90,6 +97,7 @@ class WalletState extends Equatable {
   final Failure? failure;
 
   int get balance => overview?.wallet.balance ?? 0;
+  int get affiliateBalance => overview?.wallet.affiliateBalance ?? 0;
 
   WalletState copyWith({
     LoadStatus? status,
@@ -128,11 +136,13 @@ class WalletBloc extends Bloc<WalletEvent, WalletState> {
     required GetBeneficiaries getBeneficiaries,
     required TopUpWallet topUp,
     required TransferMoney transfer,
+    required RequestWithdrawal withdraw,
   })  : _getOverview = getOverview,
         _getSources = getSources,
         _getBeneficiaries = getBeneficiaries,
         _topUp = topUp,
         _transfer = transfer,
+        _withdraw = withdraw,
         super(const WalletState()) {
     on<WalletStarted>(_onStarted);
     on<WalletCleared>((e, emit) => emit(const WalletState()));
@@ -140,6 +150,7 @@ class WalletBloc extends Bloc<WalletEvent, WalletState> {
     on<WalletFormDataRequested>(_onFormData);
     on<WalletTopUpRequested>(_onTopUp);
     on<WalletTransferRequested>(_onTransfer);
+    on<WalletWithdrawRequested>(_onWithdraw);
   }
 
   final GetWalletOverview _getOverview;
@@ -147,6 +158,7 @@ class WalletBloc extends Bloc<WalletEvent, WalletState> {
   final GetBeneficiaries _getBeneficiaries;
   final TopUpWallet _topUp;
   final TransferMoney _transfer;
+  final RequestWithdrawal _withdraw;
 
   Future<void> _onStarted(WalletStarted e, Emitter<WalletState> emit) async {
     emit(state.copyWith(status: LoadStatus.loading));
@@ -205,6 +217,31 @@ class WalletBloc extends Bloc<WalletEvent, WalletState> {
             amount: e.amount,
             counterpart: BeninPhone.display(e.recipientPhone),
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onWithdraw(WalletWithdrawRequested e, Emitter<WalletState> emit) async {
+    // Un double appui ne doit pas créer deux demandes.
+    if (state.operationStatus == LoadStatus.loading) return;
+    emit(state.copyWith(operationStatus: LoadStatus.loading));
+    final r = await _withdraw(WithdrawParams(request: e.request, withdrawable: state.affiliateBalance));
+    final receipt = r.valueOrNull;
+    if (receipt == null) {
+      emit(state.copyWith(operationStatus: LoadStatus.failure, failure: r.fold((f) => f, (_) => null)));
+      return;
+    }
+    // Le montant est réservé côté back : on relit le portefeuille pour afficher les gains restants.
+    final refreshed = await _getOverview(const NoParams());
+    emit(
+      state.copyWith(
+        operationStatus: LoadStatus.ready,
+        overview: refreshed.valueOrNull,
+        lastOperation: WalletOperation(
+          kind: WalletOperationKind.withdraw,
+          amount: receipt.amount,
+          counterpart: receipt.message,
         ),
       ),
     );

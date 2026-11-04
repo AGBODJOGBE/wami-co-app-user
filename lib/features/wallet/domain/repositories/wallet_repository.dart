@@ -13,4 +13,7 @@ abstract interface class WalletRepository {
 
   /// Transfert vers un autre passager WAMI, identifié par son numéro (format international).
   Future<Result<WalletOverview>> transfer({required String recipientPhone, required int amount, String? note});
+
+  /// Demande de retrait des gains d'affilié vers Mobile Money ou un compte bancaire.
+  Future<Result<Withdrawal>> withdraw(WithdrawRequest request);
 }
