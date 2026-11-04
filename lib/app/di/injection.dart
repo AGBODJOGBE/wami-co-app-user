@@ -126,6 +126,7 @@ void _mobility(bool fake) {
     )
     ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl(), sl()))
     ..registerLazySingleton(() => GetCurrentPlace(sl()))
+    ..registerLazySingleton(() => GetAvailablePromos(sl()))
     ..registerLazySingleton(() => SearchPlaces(sl()))
     ..registerLazySingleton(() => EstimateRideOffers(sl()))
     ..registerLazySingleton(() => GetWaitingPolicy(sl()))
@@ -136,6 +137,7 @@ void _mobility(bool fake) {
     ..registerFactory(
       () => RideBloc(
         getCurrentPlace: sl(),
+        getAvailablePromos: sl(),
         searchPlaces: sl(),
         estimateOffers: sl(),
         getWaitingPolicy: sl(),

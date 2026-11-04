@@ -70,6 +70,21 @@ void main() {
       expect(e.message, 'Interdit');
     });
 
+    test('validation : le motif détaillé remplace « Validation failed »', () {
+      final e = ApiClient.mapError(
+        _error(422, {
+          'success': false,
+          'error': {
+            'message': 'Validation failed',
+            'code': 'VALIDATION_ERROR',
+            'details': {'error': 'Cannot refer yourself'},
+          },
+        }),
+      ) as BusinessRuleException;
+      expect(e.message, 'Cannot refer yourself');
+      expect(e.code, 'VALIDATION_ERROR');
+    });
+
     test('500 et 429 : erreur serveur', () {
       expect(ApiClient.mapError(_error(500, null)), isA<ServerException>());
       final tooMany = ApiClient.mapError(_error(429, {'error': 'Too many login attempts'})) as ServerException;

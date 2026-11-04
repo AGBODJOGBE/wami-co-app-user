@@ -101,7 +101,9 @@ void main() {
     'transfert vers soi-même : refusé',
     () async {
       expect(
-          () => WalletApiDataSource(api, session).transfer(phone!, 100, null), throwsA(isA<BusinessRuleException>()),);
+        () => WalletApiDataSource(api, session).transfer(phone!, 100, null),
+        throwsA(isA<BusinessRuleException>()),
+      );
     },
     skip: skip,
   );
@@ -166,7 +168,7 @@ void main() {
     () async {
       final rides = MobilityApiDataSource(api, session, _FixedGeocoder(), pollEvery: const Duration(milliseconds: 300));
 
-      final offers = await rides.estimate(from, to);
+      final offers = (await rides.estimate(from, to)).offers;
       expect(offers.length, VehicleCategory.values.length);
       expect(offers.where((o) => o.recommended), hasLength(1));
       expect(offers.every((o) => o.price > 0), isTrue);

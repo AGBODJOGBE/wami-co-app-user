@@ -13,6 +13,9 @@ class RideState extends Equatable {
     this.bookingStatus = LoadStatus.idle,
     this.ride,
     this.ratingStatus = LoadStatus.idle,
+    this.promoCode,
+    this.promoError,
+    this.availablePromos = const [],
     this.failure,
   });
 
@@ -27,6 +30,13 @@ class RideState extends Equatable {
   final LoadStatus bookingStatus;
   final RideSnapshot? ride;
   final LoadStatus ratingStatus;
+
+  /// Code promo appliqué aux prix affichés (`null` sans code).
+  final String? promoCode;
+
+  /// Motif du dernier refus de code promo, montré une fois.
+  final String? promoError;
+  final List<AvailablePromo> availablePromos;
   final Failure? failure;
 
   VehicleOffer? get selectedOffer {
@@ -48,6 +58,10 @@ class RideState extends Equatable {
     LoadStatus? bookingStatus,
     RideSnapshot? ride,
     LoadStatus? ratingStatus,
+    String? promoCode,
+    bool clearPromoCode = false,
+    String? promoError,
+    List<AvailablePromo>? availablePromos,
     Failure? failure,
   }) {
     return RideState(
@@ -62,6 +76,10 @@ class RideState extends Equatable {
       bookingStatus: bookingStatus ?? this.bookingStatus,
       ride: ride ?? this.ride,
       ratingStatus: ratingStatus ?? this.ratingStatus,
+      promoCode: clearPromoCode ? null : (promoCode ?? this.promoCode),
+      // Comme `failure`, le motif de refus n'est conservé que pour l'émission qui le signale.
+      promoError: promoError,
+      availablePromos: availablePromos ?? this.availablePromos,
       // Un échec n'est conservé que pour l'émission qui le signale.
       failure: failure,
     );
@@ -80,6 +98,9 @@ class RideState extends Equatable {
         bookingStatus,
         ride,
         ratingStatus,
+        promoCode,
+        promoError,
+        availablePromos,
         failure,
       ];
 }

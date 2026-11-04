@@ -27,24 +27,43 @@ class SearchPlaces implements UseCase<List<Place>, String> {
 }
 
 class RouteParams {
-  const RouteParams({required this.from, required this.to});
+  const RouteParams({required this.from, required this.to, this.promoCode});
   final Place from;
   final Place to;
+  final String? promoCode;
 }
 
 /// Prix par gamme, triés du moins cher au plus cher, avec une recommandation.
-class EstimateRideOffers implements UseCase<List<VehicleOffer>, RouteParams> {
+class EstimateRideOffers implements UseCase<OfferQuote, RouteParams> {
   const EstimateRideOffers(this._repo);
   final MobilityRepository _repo;
 
   @override
-  Future<Result<List<VehicleOffer>>> call(RouteParams p) async {
+  Future<Result<OfferQuote>> call(RouteParams p) async {
     if (p.from == p.to) {
       return const Err(ValidationFailure('Le départ et la destination sont identiques.'));
     }
-    final result = await _repo.estimateOffers(from: p.from, to: p.to);
-    return result.map((offers) => [...offers]..sort((a, b) => a.price.compareTo(b.price)));
+    final code = p.promoCode?.trim().toUpperCase();
+    final result = await _repo.estimateOffers(
+      from: p.from,
+      to: p.to,
+      promoCode: code == null || code.isEmpty ? null : code,
+    );
+    return result.map(
+      (quote) => OfferQuote(
+        offers: [...quote.offers]..sort((a, b) => a.price.compareTo(b.price)),
+        promoError: quote.promoError,
+      ),
+    );
   }
+}
+
+class GetAvailablePromos implements UseCase<List<AvailablePromo>, NoParams> {
+  const GetAvailablePromos(this._repo);
+  final MobilityRepository _repo;
+
+  @override
+  Future<Result<List<AvailablePromo>>> call(NoParams _) => _repo.availablePromos();
 }
 
 class GetWaitingPolicy implements UseCase<WaitingPolicy, NoParams> {
@@ -56,10 +75,11 @@ class GetWaitingPolicy implements UseCase<WaitingPolicy, NoParams> {
 }
 
 class RequestRideParams {
-  const RequestRideParams({required this.from, required this.to, required this.category});
+  const RequestRideParams({required this.from, required this.to, required this.category, this.promoCode});
   final Place from;
   final Place to;
   final VehicleCategory category;
+  final String? promoCode;
 }
 
 class RequestRide implements UseCase<String, RequestRideParams> {
@@ -67,7 +87,8 @@ class RequestRide implements UseCase<String, RequestRideParams> {
   final MobilityRepository _repo;
 
   @override
-  Future<Result<String>> call(RequestRideParams p) => _repo.requestRide(from: p.from, to: p.to, category: p.category);
+  Future<Result<String>> call(RequestRideParams p) =>
+      _repo.requestRide(from: p.from, to: p.to, category: p.category, promoCode: p.promoCode);
 }
 
 class WatchRide implements StreamUseCase<RideSnapshot, String> {

@@ -10,7 +10,10 @@ abstract interface class MobilityRepository {
 
   Future<Result<List<Place>>> searchPlaces(String query);
 
-  Future<Result<List<VehicleOffer>>> estimateOffers({required Place from, required Place to});
+  Future<Result<OfferQuote>> estimateOffers({required Place from, required Place to, String? promoCode});
+
+  /// Codes promo que le passager peut utiliser.
+  Future<Result<List<AvailablePromo>>> availablePromos();
 
   Future<Result<WaitingPolicy>> getWaitingPolicy();
 
@@ -19,6 +22,7 @@ abstract interface class MobilityRepository {
     required Place from,
     required Place to,
     required VehicleCategory category,
+    String? promoCode,
   });
 
   /// Flux temps réel de la course (WebSocket ou polling côté data).

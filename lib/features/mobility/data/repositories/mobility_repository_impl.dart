@@ -23,8 +23,11 @@ class MobilityRepositoryImpl implements MobilityRepository {
   Future<Result<List<Place>>> searchPlaces(String query) => guard(() => _remote.searchPlaces(query));
 
   @override
-  Future<Result<List<VehicleOffer>>> estimateOffers({required Place from, required Place to}) =>
-      guard(() => _remote.estimate(from, to));
+  Future<Result<OfferQuote>> estimateOffers({required Place from, required Place to, String? promoCode}) =>
+      guard(() => _remote.estimate(from, to, promoCode: promoCode));
+
+  @override
+  Future<Result<List<AvailablePromo>>> availablePromos() => guard(_remote.availablePromos);
 
   @override
   Future<Result<WaitingPolicy>> getWaitingPolicy() => guard(_remote.waitingPolicy);
@@ -34,8 +37,9 @@ class MobilityRepositoryImpl implements MobilityRepository {
     required Place from,
     required Place to,
     required VehicleCategory category,
+    String? promoCode,
   }) =>
-      guard(() => _remote.requestRide(from, to, category));
+      guard(() => _remote.requestRide(from, to, category, promoCode: promoCode));
 
   @override
   Stream<RideSnapshot> watchRide(String rideId) => _remote.watchRide(rideId);

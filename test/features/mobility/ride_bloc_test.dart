@@ -20,6 +20,7 @@ void main() {
     final repo = MobilityRepositoryImpl(ds, const FixedLocationService());
     bloc = RideBloc(
       getCurrentPlace: GetCurrentPlace(repo),
+      getAvailablePromos: GetAvailablePromos(repo),
       searchPlaces: SearchPlaces(repo),
       estimateOffers: EstimateRideOffers(repo),
       getWaitingPolicy: GetWaitingPolicy(repo),
@@ -37,6 +38,29 @@ void main() {
     final s = await bloc.stream.firstWhere((s) => s.offers.isNotEmpty);
     expect(s.offers.first.category, VehicleCategory.moto);
     expect(s.selected, VehicleCategory.moto);
+  });
+
+  test('code promo : remise appliquée, refus signalé puis retrait', () async {
+    bloc.add(const RideDestinationChosen(Place(id: 'x', name: 'Dantokpa', address: 'Cotonou')));
+    final before = (await bloc.stream.firstWhere((s) => s.offers.isNotEmpty)).offers.first.price;
+
+    bloc.add(const RidePromoApplied(' wami10 '));
+    final applied = await bloc.stream.firstWhere((s) => s.promoCode != null && s.offersStatus.name == 'ready');
+    expect(applied.promoCode, 'WAMI10');
+    expect(applied.offers.first.price, lessThan(before));
+    expect(applied.offers.first.discount, before - applied.offers.first.price);
+
+    bloc.add(const RidePromoApplied('FAUX'));
+    final refused = await bloc.stream.firstWhere((s) => s.promoError != null);
+    expect(refused.promoError, 'Code promo inconnu.');
+    // Un code refusé est retiré : les prix reviennent sans remise.
+    expect(refused.promoCode, isNull);
+
+    bloc.add(const RidePromoApplied('WAMI10'));
+    await bloc.stream.firstWhere((s) => s.promoCode == 'WAMI10' && s.offersStatus.name == 'ready');
+    bloc.add(const RidePromoRemoved());
+    final removed = await bloc.stream.firstWhere((s) => s.promoCode == null && s.offersStatus.name == 'ready');
+    expect(removed.offers.first.price, before);
   });
 
   test('déroulé : recherche → arrivé (attente facturée) → course → pause → terminée', () async {

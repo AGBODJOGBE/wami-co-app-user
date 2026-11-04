@@ -10,9 +10,10 @@ import '../models/mobility_models.dart';
 
 abstract interface class MobilityRemoteDataSource {
   Future<List<Place>> searchPlaces(String query);
-  Future<List<VehicleOffer>> estimate(Place from, Place to);
+  Future<OfferQuote> estimate(Place from, Place to, {String? promoCode});
+  Future<List<AvailablePromo>> availablePromos();
   Future<WaitingPolicy> waitingPolicy();
-  Future<String> requestRide(Place from, Place to, VehicleCategory category);
+  Future<String> requestRide(Place from, Place to, VehicleCategory category, {String? promoCode});
   Stream<RideSnapshot> watchRide(String rideId);
   Future<void> cancelRide(String rideId);
   Future<void> rateRide(RideRating rating);
@@ -48,24 +49,41 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
 
   /// Un appel d'estimation par type de véhicule : le back ne donne qu'un prix à la fois.
   @override
-  Future<List<VehicleOffer>> estimate(Place from, Place to) async {
+  Future<OfferQuote> estimate(Place from, Place to, {String? promoCode}) async {
     if (from.lat == null || to.lat == null) {
       throw const BusinessRuleException('rejected', 'Position introuvable pour ce trajet.');
     }
-    final offers = await Future.wait([
-      for (final category in VehicleCategory.values) _estimateOne(from, to, category),
+    final results = await Future.wait([
+      for (final category in VehicleCategory.values) _estimateOne(from, to, category, promoCode),
     ]);
-    final available = offers.whereType<VehicleOffer>().toList();
+    final available = [
+      for (final r in results)
+        if (r.$1 case final offer?) offer,
+    ];
     if (available.isEmpty) throw const BusinessRuleException('unavailable');
     // Mis en avant : le moins cher.
     final cheapest = available.reduce((a, b) => a.price <= b.price ? a : b);
-    return [
-      for (final o in available)
-        VehicleOffer(category: o.category, price: o.price, etaMinutes: o.etaMinutes, recommended: o == cheapest),
-    ];
+    return OfferQuote(
+      offers: [
+        for (final o in available)
+          VehicleOffer(
+            category: o.category,
+            price: o.price,
+            etaMinutes: o.etaMinutes,
+            discount: o.discount,
+            recommended: o == cheapest,
+          ),
+      ],
+      promoError: results.map((r) => r.$2).whereType<String>().firstOrNull,
+    );
   }
 
-  Future<VehicleOffer?> _estimateOne(Place from, Place to, VehicleCategory category) async {
+  Future<(VehicleOffer?, String?)> _estimateOne(
+    Place from,
+    Place to,
+    VehicleCategory category,
+    String? promoCode,
+  ) async {
     try {
       final json = await _api.post(
         '$_base/estimate',
@@ -75,13 +93,23 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
           'dropoffLat': to.lat,
           'dropoffLng': to.lng,
           'vehicleType': category.apiName,
+          if (promoCode != null) 'promoCode': promoCode,
         },
       );
-      return MobilityModels.offer(category, json);
+      return (MobilityModels.offer(category, json), MobilityModels.promoError(json));
     } on BusinessRuleException {
       // Pas de tarif actif pour ce type de véhicule : on ne le propose pas.
-      return null;
+      return (null, null);
     }
+  }
+
+  @override
+  Future<List<AvailablePromo>> availablePromos() async {
+    final json = await _api.get('/api/passenger/promo-codes');
+    return [
+      for (final j in (json['items'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>())
+        if (MobilityModels.availablePromo(j) case final promo?) promo,
+    ];
   }
 
   /// Le back ne publie pas ses règles d'attente avant la course : valeurs par défaut,
@@ -90,7 +118,7 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
   Future<WaitingPolicy> waitingPolicy() async => const WaitingPolicy();
 
   @override
-  Future<String> requestRide(Place from, Place to, VehicleCategory category) async {
+  Future<String> requestRide(Place from, Place to, VehicleCategory category, {String? promoCode}) async {
     final json = await _api.post(
       _base,
       body: {
@@ -101,6 +129,7 @@ class MobilityApiDataSource implements MobilityRemoteDataSource {
         // Le portefeuille d'abord, le reste en espèces : la course ne doit pas être refusée pour un solde juste.
         'paymentMethod': 'MIXED',
         'walletId': _session.walletId,
+        if (promoCode != null && promoCode.isNotEmpty) 'promoCode': promoCode,
       },
     );
     return json['rideId'] as String;

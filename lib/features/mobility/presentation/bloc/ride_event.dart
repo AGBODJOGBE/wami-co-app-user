@@ -39,6 +39,18 @@ final class RideCategorySelected extends RideEvent {
   List<Object?> get props => [category];
 }
 
+final class RidePromoApplied extends RideEvent {
+  const RidePromoApplied(this.code);
+  final String code;
+
+  @override
+  List<Object?> get props => [code];
+}
+
+final class RidePromoRemoved extends RideEvent {
+  const RidePromoRemoved();
+}
+
 final class RideBooked extends RideEvent {
   const RideBooked();
 }

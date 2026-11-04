@@ -19,12 +19,14 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     required SearchPlaces searchPlaces,
     required EstimateRideOffers estimateOffers,
     required GetCurrentPlace getCurrentPlace,
+    required GetAvailablePromos getAvailablePromos,
     required GetWaitingPolicy getWaitingPolicy,
     required RequestRide requestRide,
     required WatchRide watchRide,
     required CancelRide cancelRide,
     required RateRide rateRide,
   })  : _getCurrentPlace = getCurrentPlace,
+        _getAvailablePromos = getAvailablePromos,
         _searchPlaces = searchPlaces,
         _estimateOffers = estimateOffers,
         _getWaitingPolicy = getWaitingPolicy,
@@ -37,12 +39,15 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     on<RideQueryChanged>(_onQueryChanged);
     on<RideDestinationChosen>(_onDestinationChosen);
     on<RideCategorySelected>((e, emit) => emit(state.copyWith(selected: e.category)));
+    on<RidePromoApplied>((e, emit) => _estimate(emit, promoCode: e.code.trim().toUpperCase()));
+    on<RidePromoRemoved>((e, emit) => _estimate(emit, clearPromo: true));
     on<RideBooked>(_onBooked);
     on<RideCancelled>(_onCancelled);
     on<RideRated>(_onRated);
   }
 
   final GetCurrentPlace _getCurrentPlace;
+  final GetAvailablePromos _getAvailablePromos;
   final SearchPlaces _searchPlaces;
   final EstimateRideOffers _estimateOffers;
   final GetWaitingPolicy _getWaitingPolicy;
@@ -61,6 +66,8 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     emit(state.copyWith(policy: policy.valueOrNull ?? const WaitingPolicy()));
     if (e.initialQuery != null) add(RideQueryChanged(e.initialQuery!));
     await _locate(emit);
+    final promos = await _getAvailablePromos(const NoParams());
+    emit(state.copyWith(availablePromos: promos.valueOrNull ?? const []));
   }
 
   /// Lit la position du téléphone ; en cas d'échec, l'erreur est montrée au choix de la destination.
@@ -91,16 +98,33 @@ class RideBloc extends Bloc<RideEvent, RideState> {
         return;
       }
     }
-    final result = await _estimateOffers(RouteParams(from: state.origin, to: e.place));
+    await _estimate(emit);
+  }
+
+  /// Calcule les prix du trajet choisi, avec ou sans code promo. Un code refusé est retiré et son motif signalé.
+  Future<void> _estimate(Emitter<RideState> emit, {String? promoCode, bool clearPromo = false}) async {
+    final to = state.destination;
+    if (to == null) return;
+    final code = clearPromo ? null : (promoCode ?? state.promoCode);
+    emit(state.copyWith(offersStatus: LoadStatus.loading, promoCode: code, clearPromoCode: code == null));
+    final result = await _estimateOffers(RouteParams(from: state.origin, to: to, promoCode: code));
     result.fold(
-      (f) => emit(state.copyWith(offersStatus: LoadStatus.failure, failure: f)),
-      (offers) => emit(
-        state.copyWith(
-          offersStatus: LoadStatus.ready,
-          offers: offers,
-          selected: offers.firstWhere((o) => o.recommended, orElse: () => offers.first).category,
-        ),
-      ),
+      (f) => emit(state.copyWith(offersStatus: LoadStatus.failure, failure: f, clearPromoCode: true)),
+      (quote) {
+        final offers = quote.offers;
+        final stillSelected = offers.any((o) => o.category == state.selected);
+        emit(
+          state.copyWith(
+            offersStatus: LoadStatus.ready,
+            offers: offers,
+            selected: stillSelected
+                ? state.selected
+                : offers.firstWhere((o) => o.recommended, orElse: () => offers.first).category,
+            promoError: quote.promoError,
+            clearPromoCode: quote.promoError != null,
+          ),
+        );
+      },
     );
   }
 
@@ -109,7 +133,9 @@ class RideBloc extends Bloc<RideEvent, RideState> {
     final category = state.selected;
     if (to == null || category == null) return;
     emit(state.copyWith(bookingStatus: LoadStatus.loading));
-    final result = await _requestRide(RequestRideParams(from: state.origin, to: to, category: category));
+    final result = await _requestRide(
+      RequestRideParams(from: state.origin, to: to, category: category, promoCode: state.promoCode),
+    );
     final rideId = result.valueOrNull;
     if (rideId == null) {
       emit(state.copyWith(bookingStatus: LoadStatus.failure, failure: result.fold((f) => f, (_) => null)));
