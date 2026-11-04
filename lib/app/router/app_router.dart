@@ -11,6 +11,8 @@ import '../../features/auth/presentation/pages/sign_in_page.dart';
 import '../../features/account/presentation/pages/account_page.dart';
 import '../../features/activities/presentation/activities_page.dart';
 import '../../features/bus/presentation/cubit/bus_booking_cubit.dart';
+import '../../features/intercity/presentation/cubit/intercity_cubit.dart';
+import '../../features/intercity/presentation/pages/intercity_pages.dart';
 import '../../features/bus/presentation/pages/bus_compare_page.dart';
 import '../../features/bus/presentation/pages/bus_results_page.dart';
 import '../../features/bus/presentation/pages/bus_search_page.dart';
@@ -170,6 +172,23 @@ class AppRouter {
               GoRoute(path: 'compare', builder: (_, __) => const BusComparePage()),
               GoRoute(path: 'seats', builder: (_, __) => const BusSeatPage()),
               GoRoute(path: 'ticket', builder: (_, __) => const BusTicketPage()),
+            ],
+          ),
+        ],
+      ),
+
+      // ── Parcours Interurbain ──
+      ShellRoute(
+        parentNavigatorKey: _rootKey,
+        builder: (_, __, child) => BlocProvider(create: (_) => sl<IntercityCubit>(), child: child),
+        routes: [
+          GoRoute(
+            path: Routes.intercity,
+            builder: (_, __) => const IntercitySearchPage(),
+            routes: [
+              GoRoute(path: 'results', builder: (_, __) => const IntercityResultsPage()),
+              GoRoute(path: 'offer', builder: (_, __) => const IntercityOfferPage()),
+              GoRoute(path: 'booked', builder: (_, __) => const IntercityBookedPage()),
             ],
           ),
         ],

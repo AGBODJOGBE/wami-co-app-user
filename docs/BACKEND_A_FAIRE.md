@@ -77,6 +77,36 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 
 ---
 
+## 🔴 Trajets interurbains (`/api/passenger/offers`, `/api/passenger/bookings`)
+
+Vérifié sur le back local (une offre insérée en base, réservations réelles). L'app a un parcours « Interurbain » complet (recherche, détail, réservation,
+annulation) ; ces points l'empêchent de fonctionner en production ou exposent des données.
+
+1. **BLOQUANT : `GET /api/passenger/offers` ne renvoie pas l'identifiant de l'offre.** La réponse est `DriverOffer.toObject()`, qui contient `offerNumber`
+   mais pas `id` ; or `POST /offers/:offerId/book` cherche par `id` (réservation par `offerNumber` → `Offer not found.`). Le passager ne peut donc pas réserver.
+   Ajouter `id` à la réponse. L'app le lit déjà (`id` ou `offerId`) et désactive « Réserver » tant qu'il manque.
+2. **Données internes exposées au passager** : `driverId`, `vehicleId`, `platformShareRate`, `driverShareRate`, `totalRevenue`, `driverEarnings`,
+   `platformCommission`, `confirmedBookingCount`. Renvoyer un DTO passager (id, numéro, véhicule, villes, adresses, horaires, places, prix par place, étapes, description).
+3. **Le passager ne sait pas avec qui il voyage** : ni prénom du chauffeur, ni note, ni photo, ni véhicule (marque, modèle, couleur, plaque). À ajouter dans le DTO ;
+   l'app affichera ces champs dès qu'ils existent.
+4. **Paiement `WALLET` non contrôlé** : une réservation de 8 000 FCFA avec un portefeuille à 0 est acceptée (`CONFIRMED`), le solde ne bouge pas, et l'annulation
+   répond `refundAmount: 8000` alors que rien n'a été débité. Constaté avec le worker d'événements arrêté (le gel du montant passe par l'événement `OfferSeatBooked`) :
+   vérifier le solde et geler le montant **avant** de confirmer, ou ne confirmer qu'après le gel ; ne rembourser que ce qui a été débité.
+5. **Pas de liste « mes réservations »** ni de détail : `GET /api/passenger/bookings` et `GET /api/passenger/bookings/:id` (avec offre, chauffeur, statut).
+   Sans eux, l'app ne peut annuler que la réservation faite pendant la session, et ne l'affiche pas dans l'onglet Activités.
+   `GET /api/passenger/offers/:id` manque aussi (détail d'une offre).
+6. **Villes** : le filtre compare `originCity` / `destinationCity` tel quel (sensible à la casse et aux accents). Fournir `GET /api/cities` (liste officielle) et
+   normaliser la comparaison. L'app propose une liste fixe de villes en attendant.
+7. **Date de recherche** : `setHours(0,0,0,0)` utilise le fuseau du serveur ; fixer `Africa/Porto-Novo` pour que « demain » soit le même partout.
+8. **Messages d'erreur en anglais** (`Offer not found.`, `Only 4 seat(s) available, requested 9`, `You already have an active booking on this offer.`,
+   `Cannot cancel a booking in status …`) : l'app les traduit en cherchant des mots ; préférer des codes stables (`OFFER_NOT_FOUND`, `NOT_ENOUGH_SEATS`, `ALREADY_BOOKED`, `CANNOT_CANCEL`).
+9. **Point de montée / descente** : la route accepte `pickupLat/Lng/Address` et `dropoffLat/Lng/Address` ; l'app n'envoie pas encore de point personnalisé
+   (elle utilise ceux de l'offre). Dire si la contrainte est de rester proche du trajet du chauffeur.
+10. **Trajets quotidiens (`/api/passenger/daily-routes/:id/pause|resume`)** : le passager peut mettre en pause ou reprendre, mais aucune route ne liste ses trajets
+    quotidiens ni n'en crée côté passager (la création est réservée au chauffeur). L'app n'a donc pas d'écran pour eux.
+
+---
+
 ## 🟠 Fonctions du mobile que le back ne gère pas
 
 > Les modules entiers qui n'ont aucune route (accueil, bus, hébergement, paramètres, SOS/partage/messagerie de course) sont spécifiés

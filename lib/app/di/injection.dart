@@ -37,6 +37,11 @@ import '../../features/bus/data/repositories/bus_repository_impl.dart';
 import '../../features/bus/domain/repositories/bus_repository.dart';
 import '../../features/bus/domain/usecases/bus_usecases.dart';
 import '../../features/bus/presentation/cubit/bus_booking_cubit.dart';
+import '../../features/intercity/data/datasources/intercity_data_sources.dart';
+import '../../features/intercity/data/repositories/intercity_repository_impl.dart';
+import '../../features/intercity/domain/repositories/intercity_repository.dart';
+import '../../features/intercity/domain/usecases/intercity_usecases.dart';
+import '../../features/intercity/presentation/cubit/intercity_cubit.dart';
 import '../../features/delivery/data/datasources/delivery_data_sources.dart';
 import '../../features/delivery/data/repositories/delivery_repository_impl.dart';
 import '../../features/delivery/domain/repositories/delivery_repository.dart';
@@ -110,6 +115,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   _delivery(fake);
   _bus(stillSimulated);
   _lodging(stillSimulated);
+  _intercity(fake);
   _wallet(fake);
   _notifications(fake);
   _referral(fake);
@@ -224,6 +230,18 @@ void _bus(bool fake) {
     ..registerLazySingleton(() => GetSeatMap(sl()))
     ..registerLazySingleton(() => BookBusSeats(sl()))
     ..registerFactory(() => BusBookingCubit(searchTrips: sl(), getSeatMap: sl(), bookSeats: sl()));
+}
+
+void _intercity(bool fake) {
+  sl
+    ..registerLazySingleton<IntercityRemoteDataSource>(
+      () => fake ? IntercityFakeDataSource(sl()) : IntercityApiDataSource(sl()),
+    )
+    ..registerLazySingleton<IntercityRepository>(() => IntercityRepositoryImpl(sl()))
+    ..registerLazySingleton(() => SearchIntercityOffers(sl()))
+    ..registerLazySingleton(() => BookIntercityOffer(sl()))
+    ..registerLazySingleton(() => CancelIntercityBooking(sl()))
+    ..registerFactory(() => IntercityCubit(search: sl(), book: sl(), cancel: sl()));
 }
 
 void _lodging(bool fake) {

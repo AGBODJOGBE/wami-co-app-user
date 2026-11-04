@@ -47,6 +47,12 @@ abstract final class Routes {
   static const busSeats = '/bus/seats';
   static const busTicket = '/bus/ticket';
 
+  // Parcours Interurbain (places réservées sur le trajet d'un chauffeur).
+  static const intercity = '/intercity';
+  static const intercityResults = '/intercity/results';
+  static const intercityOffer = '/intercity/offer';
+  static const intercityBooked = '/intercity/booked';
+
   // Parcours Hébergement.
   static const stay = '/stay';
   static const stayResults = '/stay/results';
@@ -61,5 +67,6 @@ abstract final class Routes {
         ServiceType.delivery => delivery,
         ServiceType.bus => bus,
         ServiceType.lodging => stay,
+        ServiceType.intercity => intercity,
       };
 }
