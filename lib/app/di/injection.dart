@@ -51,6 +51,11 @@ import '../../features/mobility/data/repositories/mobility_repository_impl.dart'
 import '../../features/mobility/domain/repositories/mobility_repository.dart';
 import '../../features/mobility/domain/usecases/mobility_usecases.dart';
 import '../../features/mobility/presentation/bloc/ride_bloc.dart';
+import '../../features/referral/data/datasources/referral_data_sources.dart';
+import '../../features/referral/data/repositories/referral_repository_impl.dart';
+import '../../features/referral/domain/repositories/referral_repository.dart';
+import '../../features/referral/domain/usecases/referral_usecases.dart';
+import '../../features/referral/presentation/cubit/referral_cubit.dart';
 import '../../features/wallet/data/datasources/wallet_data_sources.dart';
 import '../../features/wallet/data/repositories/wallet_repository_impl.dart';
 import '../../features/wallet/domain/repositories/wallet_repository.dart';
@@ -83,7 +88,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   final fake = config.useFakeBackend;
 
   _auth(fake);
-  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison.
+  // Branchés sur le back wami-co : authentification, mobilité, portefeuille, compte, activités, livraison, parrainage.
   // Pas d'équivalent côté back pour l'instant : ces modules restent sur leurs données simulées,
   // même avec WAMI_FAKE_BACKEND=false (sinon ils appelleraient des routes qui n'existent pas).
   const stillSimulated = true;
@@ -93,6 +98,7 @@ Future<void> configureDependencies(AppConfig config, {SessionStore? sessionStore
   _bus(stillSimulated);
   _lodging(stillSimulated);
   _wallet(fake);
+  _referral(fake);
   _account(fake);
   _activities(fake);
 }
@@ -142,6 +148,7 @@ void _mobility(bool fake) {
     )
     ..registerLazySingleton<MobilityRepository>(() => MobilityRepositoryImpl(sl(), sl()))
     ..registerLazySingleton(() => GetCurrentPlace(sl()))
+    ..registerLazySingleton(() => GetAvailablePromos(sl()))
     ..registerLazySingleton(() => SearchPlaces(sl()))
     ..registerLazySingleton(() => EstimateRideOffers(sl()))
     ..registerLazySingleton(() => GetWaitingPolicy(sl()))
@@ -152,6 +159,7 @@ void _mobility(bool fake) {
     ..registerFactory(
       () => RideBloc(
         getCurrentPlace: sl(),
+        getAvailablePromos: sl(),
         searchPlaces: sl(),
         estimateOffers: sl(),
         getWaitingPolicy: sl(),
@@ -216,6 +224,17 @@ void _wallet(bool fake) {
     ..registerFactory(
       () => WalletBloc(getOverview: sl(), getSources: sl(), getBeneficiaries: sl(), topUp: sl(), transfer: sl()),
     );
+}
+
+void _referral(bool fake) {
+  sl
+    ..registerLazySingleton<ReferralRemoteDataSource>(
+      () => fake ? ReferralFakeDataSource(sl(), sl()) : ReferralApiDataSource(sl()),
+    )
+    ..registerLazySingleton<ReferralRepository>(() => ReferralRepositoryImpl(sl()))
+    ..registerLazySingleton(() => GetReferralOverview(sl()))
+    ..registerLazySingleton(() => ApplyReferralCode(sl()))
+    ..registerFactory(() => ReferralCubit(sl(), sl()));
 }
 
 void _account(bool fake) {

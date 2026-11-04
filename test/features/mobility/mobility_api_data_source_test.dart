@@ -166,13 +166,82 @@ void main() {
           'data': {'estimatedPrice': 2500, 'durationSeconds': 700},
         });
 
-      final offers = await rides.estimate(_from, _to);
+      final offers = (await rides.estimate(_from, _to)).offers;
 
       expect(server.count('POST /api/passenger/rides/estimate'), VehicleCategory.values.length);
       expect(offers, isNotEmpty);
       expect(offers.where((o) => o.recommended), hasLength(1));
       expect(offers.firstWhere((o) => o.recommended).price, 900);
       expect(server.requests.first.data, containsPair('vehicleType', 'MOTO'));
+    });
+
+    test('estimation avec code promo : le code part, le prix remisé est lu', () async {
+      server.on('POST /api/passenger/rides/estimate', {
+        'success': true,
+        'data': {
+          'estimatedPrice': 1529,
+          'finalEstimatedPrice': 1392,
+          'discountAmount': 137,
+          'durationSeconds': 600,
+          'promoDisplayText': '300 F offerts',
+        },
+      });
+      final quote = await rides.estimate(_from, _to, promoCode: 'NOUVEAU300');
+      expect(server.requests.first.data, containsPair('promoCode', 'NOUVEAU300'));
+      expect(quote.promoError, isNull);
+      expect(quote.offers.first.price, 1392);
+      expect(quote.offers.first.discount, 137);
+      expect(quote.offers.first.fullPrice, 1529);
+    });
+
+    test('code promo refusé : motif en français, prix sans remise', () async {
+      server.on('POST /api/passenger/rides/estimate', {
+        'success': true,
+        'data': {
+          'estimatedPrice': 1529,
+          'durationSeconds': 600,
+          'promoError': "PromoCode with id 'ZZZ' not found",
+        },
+      });
+      final quote = await rides.estimate(_from, _to, promoCode: 'ZZZ');
+      expect(quote.promoError, 'Code promo inconnu.');
+      expect(quote.offers.first.price, 1529);
+      expect(quote.offers.first.discount, 0);
+    });
+
+    test('code promo refusé avec un motif déjà en français : gardé tel quel', () async {
+      server.on('POST /api/passenger/rides/estimate', {
+        'success': true,
+        'data': {
+          'estimatedPrice': 1000,
+          'durationSeconds': 60,
+          'promoError': 'Ce code promo est réservé aux clients actifs.',
+        },
+      });
+      expect(
+        (await rides.estimate(_from, _to, promoCode: 'X')).promoError,
+        'Ce code promo est réservé aux clients actifs.',
+      );
+    });
+
+    test('codes disponibles : seuls le code et son texte sont retenus', () async {
+      server.on('GET /api/passenger/promo-codes', {
+        'success': true,
+        'data': [
+          {
+            'id': 'p1',
+            'code': 'NOUVEAU300',
+            'displayText': '300 F offerts',
+            'realCostAccrued': 1234,
+            'marginResidualPct': 20,
+            'targetUserIds': ['autre-utilisateur'],
+          },
+          {'id': 'p2', 'displayText': 'sans code'},
+        ],
+      });
+      final promos = await rides.availablePromos();
+      expect(promos.single.code, 'NOUVEAU300');
+      expect(promos.single.displayText, '300 F offerts');
     });
 
     test('estimation impossible : aucun type disponible', () {
@@ -190,7 +259,7 @@ void main() {
         status: 201,
       );
 
-      final id = await rides.requestRide(_from, _to, VehicleCategory.confort);
+      final id = await rides.requestRide(_from, _to, VehicleCategory.confort, promoCode: 'NOUVEAU300');
 
       expect(id, 'r1');
       expect(server.last('POST /api/passenger/rides')!.data, {
@@ -204,6 +273,7 @@ void main() {
         'rideType': 'STANDARD',
         'paymentMethod': 'MIXED',
         'walletId': 'w1',
+        'promoCode': 'NOUVEAU300',
       });
     });
 

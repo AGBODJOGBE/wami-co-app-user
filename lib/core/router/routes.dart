@@ -21,6 +21,7 @@ abstract final class Routes {
   static const accountProfile = '/account/profile';
   static const accountSettings = '/account/settings';
   static const accountSupport = '/account/support';
+  static const accountReferral = '/account/referral';
   static const accountPrivacy = '/account/privacy';
   static const accountPassword = '/account/password';
 

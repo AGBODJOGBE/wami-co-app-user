@@ -54,6 +54,12 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
 - **À faire** : ajouter `deactivatePassengerProfile()` à `User` (et la traiter de façon atomique avec la suppression du profil).
   Corriger aussi la faute dans le message : « not found not found ».
 - **Côté app** : en cas de 500, l'app vérifie si le profil existe encore et, s'il a disparu, déconnecte l'utilisateur.
+### 8. La liste des codes promo disponibles expose des données internes
+- **Constat** : `GET /api/passenger/promo-codes` renvoie `PromoCode.toObject()` en entier au passager, dont `realCostAccrued`,
+  `marginResidualPct`, `commissionBase`, `budgetedLossCampaign`, `sponsoredBudget`, `dailySpendingLimit`, `affiliateId`,
+  `affiliateCommissionRate` et **`targetUserIds`** (identifiants d'autres utilisateurs ciblés par un code).
+- **À faire** : renvoyer un objet public : `id`, `code`, `displayText`, `endDate`, `discountType`, `discountValue`, `minOrderAmount`.
+  L'app n'utilise que `code` et `displayText`.
 
 ---
 
@@ -96,6 +102,18 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
   n'est envoyé (contrairement à `send-otp`, synchrone). À prévoir dans le déploiement (`start:all`).
 - **Mot de passe oublié, numéro inconnu** : le back répond « un code a été envoyé » même sans compte (bien), mais la réponse du cas connu
   contient `phoneNumber`, ce qui permet de distinguer les deux. À aligner.
+- **Codes promo, texte affiché** : `displayText` promet « 300 F offerts » alors que la remise réelle est plafonnée par le garde-fou de marge
+  (137 F sur une course de 1 529 F). L'app affiche donc le prix réel (`finalEstimatedPrice`), pas le texte. Idéal : renvoyer la remise
+  réelle dans la liste, ou un texte généré après plafonnement.
+- **Codes promo, erreur technique** : `PromoCode with id 'X' not found` pour un code inconnu (l'app la traduit en « Code promo inconnu. »).
+  Renvoyer un code d'erreur stable (`PROMO_CODE_NOT_FOUND`) et un message en français.
+- **Création d'un code promo (admin)** : sans les tableaux `targetZones`, `vehicleTypes`, `timeWindows`, la route plante
+  (`Cannot read properties of undefined (reading 'length')`) alors que le Swagger les donne comme facultatifs.
+- **Parrainage, barème** : le montant de la récompense n'est publié nulle part avant le premier parrainage. L'app l'affiche seulement après avoir
+  vu un parrainage (« [à valider] » avant). Proposer `GET /api/passenger/referrals/config` → `{ referrerReward, referredReward, actionsRequired }`.
+- **Parrainage, doublon** : `GET /api/passengers/referrals` et `GET /api/passenger/referrals/my` renvoient la même chose ; en garder une.
+- **Parrainage, messages** : `Referral code 'X' does not exist not found` (« not found » deux fois), `Cannot refer yourself`,
+  `User has already been referred`. L'app les traduit ; mieux vaut des codes stables.
 
 - **Idempotence** : aucune route d'écriture n'accepte `Idempotency-Key` (recharge, transfert, demande de course, commande de livraison). Un retry réseau après timeout peut dupliquer un paiement. L'app ignore les doubles appuis mais ne peut rien contre un retry.
 - **Erreurs** : réponses mêlant `{ error: "texte" }` et `{ error: { code, message } }`, en anglais pour la plupart. Proposition : toujours `{ success:false, error:{ code, message } }` avec un `code` stable et `message` en français. L'app traduit pour l'instant les refus du portefeuille et la limite de tentatives.

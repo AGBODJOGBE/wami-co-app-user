@@ -36,10 +36,19 @@ class VehicleOffer extends Equatable {
     required this.price,
     required this.etaMinutes,
     this.recommended = false,
+    this.discount = 0,
   });
 
   final VehicleCategory category;
+
+  /// Prix à payer, remise du code promo déduite.
   final int price;
+
+  /// Remise du code promo appliquée (0 sans code).
+  final int discount;
+
+  /// Prix avant remise.
+  int get fullPrice => price + discount;
 
   /// Durée estimée du trajet (le back ne donne pas encore le délai d'arrivée du chauffeur à l'estimation).
   final int etaMinutes;
@@ -48,5 +57,27 @@ class VehicleOffer extends Equatable {
   final bool recommended;
 
   @override
-  List<Object?> get props => [category, price, etaMinutes, recommended];
+  List<Object?> get props => [category, price, etaMinutes, recommended, discount];
+}
+
+/// Résultat d'une estimation : les prix, et le motif de refus du code promo s'il a été refusé.
+class OfferQuote extends Equatable {
+  const OfferQuote({required this.offers, this.promoError});
+  final List<VehicleOffer> offers;
+
+  /// Code promo refusé (inconnu, réservé aux nouveaux clients…) : les prix sont alors sans remise.
+  final String? promoError;
+
+  @override
+  List<Object?> get props => [offers, promoError];
+}
+
+/// Code promo proposé au passager. Seuls le code et son texte sont utiles à l'écran.
+class AvailablePromo extends Equatable {
+  const AvailablePromo({required this.code, required this.displayText});
+  final String code;
+  final String displayText;
+
+  @override
+  List<Object?> get props => [code, displayText];
 }

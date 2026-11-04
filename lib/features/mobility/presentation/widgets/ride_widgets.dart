@@ -28,7 +28,8 @@ class OfferTile extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
-      label: '${offer.category.label}, ${Fmt.fcfa(offer.price)}, ${offer.etaMinutes} minutes',
+      label:
+          '${offer.category.label}, ${Fmt.fcfa(offer.price)}${offer.discount > 0 ? ', remise ${Fmt.fcfa(offer.discount)}' : ''}, ${offer.etaMinutes} minutes',
       excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
@@ -69,7 +70,19 @@ class OfferTile extends StatelessWidget {
                   ],
                 ),
               ),
-              NumberText(Fmt.fcfa(offer.price), size: 14),
+              if (offer.discount > 0)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      Fmt.fcfa(offer.fullPrice),
+                      style: t.bodySmall?.copyWith(fontSize: 11, decoration: TextDecoration.lineThrough),
+                    ),
+                    NumberText(Fmt.fcfa(offer.price), size: 14),
+                  ],
+                )
+              else
+                NumberText(Fmt.fcfa(offer.price), size: 14),
             ],
           ),
         ),

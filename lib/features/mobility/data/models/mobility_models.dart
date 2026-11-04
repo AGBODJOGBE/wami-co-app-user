@@ -30,11 +30,33 @@ abstract final class MobilityModels {
       };
 
   /// Réponse de `POST /rides/estimate` pour un type de véhicule.
+  ///
+  /// Avec un code promo valable, `finalEstimatedPrice` est le prix remisé et `discountAmount` la remise réelle
+  /// (après le garde-fou de marge du back : elle peut être inférieure à ce que promet `promoDisplayText`).
   static VehicleOffer? offer(VehicleCategory category, Map<String, dynamic> j) {
     final price = j['finalEstimatedPrice'] ?? j['estimatedPrice'];
     if (price is! num) return null;
     final seconds = (j['durationSeconds'] as num?)?.toInt() ?? 0;
-    return VehicleOffer(category: category, price: price.toInt(), etaMinutes: (seconds / 60).ceil());
+    return VehicleOffer(
+      category: category,
+      price: price.toInt(),
+      etaMinutes: (seconds / 60).ceil(),
+      discount: (j['discountAmount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Motif de refus du code promo, en français. Le back répond parfois par un message technique en anglais.
+  static String? promoError(Map<String, dynamic> j) {
+    final error = j['promoError'] as String?;
+    if (error == null || error.isEmpty) return null;
+    if (RegExp(r"^PromoCode with id '.*' not found$").hasMatch(error)) return 'Code promo inconnu.';
+    return error;
+  }
+
+  static AvailablePromo? availablePromo(Map<String, dynamic> j) {
+    final code = j['code'] as String?;
+    if (code == null || code.isEmpty) return null;
+    return AvailablePromo(code: code, displayText: j['displayText'] as String? ?? '');
   }
 
   /// Réponse de `GET /rides/:id`.

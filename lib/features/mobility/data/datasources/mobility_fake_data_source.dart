@@ -48,18 +48,32 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
     return _places.where((p) => p.name.toLowerCase().contains(q) || p.address.toLowerCase().contains(q)).toList();
   }
 
+  /// Code promo simulé : `WAMI10` donne 10 % de remise.
+  static const _promoCode = 'WAMI10';
+
   @override
-  Future<List<VehicleOffer>> estimate(Place from, Place to) async {
+  Future<OfferQuote> estimate(Place from, Place to, {String? promoCode}) async {
     await _fake.latency();
-    return [
-      for (final c in VehicleCategory.values)
-        VehicleOffer(
-          category: c,
-          price: _grid[c]!.$1,
-          etaMinutes: _grid[c]!.$2,
-          recommended: c == VehicleCategory.moto,
-        ),
-    ];
+    final applied = promoCode == _promoCode;
+    return OfferQuote(
+      offers: [
+        for (final c in VehicleCategory.values)
+          VehicleOffer(
+            category: c,
+            price: applied ? (_grid[c]!.$1 * 0.9).round() : _grid[c]!.$1,
+            discount: applied ? _grid[c]!.$1 - (_grid[c]!.$1 * 0.9).round() : 0,
+            etaMinutes: _grid[c]!.$2,
+            recommended: c == VehicleCategory.moto,
+          ),
+      ],
+      promoError: promoCode == null || applied ? null : 'Code promo inconnu.',
+    );
+  }
+
+  @override
+  Future<List<AvailablePromo>> availablePromos() async {
+    await _fake.latency(0.3);
+    return const [AvailablePromo(code: _promoCode, displayText: '-10 % sur votre course')];
   }
 
   @override
@@ -69,7 +83,7 @@ class MobilityFakeDataSource implements MobilityRemoteDataSource {
   }
 
   @override
-  Future<String> requestRide(Place from, Place to, VehicleCategory category) async {
+  Future<String> requestRide(Place from, Place to, VehicleCategory category, {String? promoCode}) async {
     await _fake.latency();
     final id = _fake.reference();
     _rides[id] = category;

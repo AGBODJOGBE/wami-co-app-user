@@ -31,6 +31,7 @@ import '../../features/mobility/presentation/pages/ride_offers_page.dart';
 import '../../features/mobility/presentation/pages/ride_rating_page.dart';
 import '../../features/mobility/presentation/pages/ride_tracking_page.dart';
 import '../../features/wallet/presentation/pages/wallet_operation_pages.dart';
+import '../../features/referral/presentation/pages/referral_page.dart';
 import '../../features/wallet/presentation/pages/wallet_page.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/router/routes.dart';
@@ -109,6 +110,7 @@ class AppRouter {
                   _full('profile', (_) => const ProfilePage()),
                   _full('settings', (_) => const SettingsPage()),
                   _full('support', (_) => const SupportPage()),
+                  _full('referral', (_) => const ReferralPage()),
                   _full('privacy', (_) => const PrivacyPage()),
                   _full('password', (_) => const ChangePasswordPage()),
                 ],

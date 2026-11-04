@@ -98,7 +98,12 @@ class ApiClient {
     if (body is! Map<String, dynamic>) return (null, null);
     final error = body['error'];
     if (error is String) return (body['code'] as String?, error);
-    if (error is Map<String, dynamic>) return (error['code'] as String?, error['message'] as String?);
+    if (error is Map<String, dynamic>) {
+      // Erreurs de validation : le vrai motif est dans `details.error` (« Validation failed » seul ne dit rien).
+      final details = error['details'];
+      final reason = details is Map<String, dynamic> ? details['error'] : null;
+      return (error['code'] as String?, reason is String ? reason : error['message'] as String?);
+    }
     return (body['code'] as String?, body['message'] as String?);
   }
 }
