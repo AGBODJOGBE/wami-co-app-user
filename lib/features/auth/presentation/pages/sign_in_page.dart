@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/utils/load_status.dart';
+import '../../../../core/utils/password_policy.dart';
 import '../../../../core/utils/phone.dart';
 import '../../../../core/widgets/wami_basics.dart';
 import '../../../../core/widgets/wami_buttons.dart';
@@ -12,7 +13,6 @@ import '../../../../core/widgets/wami_scaffold.dart';
 import '../../../../core/widgets/wami_selectors.dart';
 import '../../../../core/widgets/wami_text_field.dart';
 import '../../domain/entities/auth_entities.dart';
-import '../../domain/usecases/auth_usecases.dart';
 import '../cubit/auth_cubit.dart';
 import '../cubit/sign_in_cubit.dart';
 
@@ -23,7 +23,7 @@ class SignInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SignInCubit, SignInState>(
-      listenWhen: (a, b) => a.status != b.status || a.session != b.session,
+      listenWhen: (a, b) => a.status != b.status || a.session != b.session || a.notice != b.notice,
       listener: (context, state) {
         final session = state.session;
         if (session != null) {
@@ -31,6 +31,8 @@ class SignInPage extends StatelessWidget {
           context.read<AuthCubit>().signedIn(session);
         } else if (state.status == LoadStatus.failure) {
           showWamiMessage(context, state.failure!.message);
+        } else if (state.notice != null) {
+          showWamiMessage(context, state.notice!);
         }
       },
       builder: (context, state) {
@@ -43,12 +45,14 @@ class SignInPage extends StatelessWidget {
             SignInStep.code => 'Code de vérification',
             SignInStep.password => 'Bon retour',
             SignInStep.register => 'Créer votre compte',
+            SignInStep.reset => 'Nouveau mot de passe',
           },
           subtitle: switch (state.step) {
             SignInStep.phone => 'Entrez votre numéro pour vous connecter ou créer un compte.',
             SignInStep.code => 'Code envoyé par SMS au ${BeninPhone.display(state.phone)}.',
             SignInStep.password => 'Saisissez votre mot de passe pour ${BeninPhone.display(state.phone)}.',
             SignInStep.register => 'Quelques informations pour finir l’inscription.',
+            SignInStep.reset => 'Code envoyé par SMS au ${BeninPhone.display(state.phone)}.',
           },
           body: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
@@ -59,6 +63,7 @@ class SignInPage extends StatelessWidget {
                 SignInStep.code => _CodeStep(state: state),
                 SignInStep.password => _PasswordStep(state: state),
                 SignInStep.register => _RegisterStep(state: state),
+                SignInStep.reset => _ResetStep(state: state),
               },
             ),
           ),
@@ -219,6 +224,10 @@ class _PasswordStepState extends State<_PasswordStep> {
           ),
         ),
         WamiPrimaryButton(label: 'Se connecter', loading: widget.state.busy, onPressed: _submit),
+        WamiGhostButton(
+          label: 'Mot de passe oublié ?',
+          onPressed: widget.state.busy ? null : () => context.read<SignInCubit>().forgotPassword(),
+        ),
       ],
     );
   }
@@ -338,6 +347,92 @@ class _RegisterStepState extends State<_RegisterStep> {
           onSubmitted: (_) => _submit(),
         ),
         WamiPrimaryButton(label: 'Créer mon compte', loading: widget.state.busy, onPressed: _submit),
+      ],
+    );
+  }
+}
+
+/// Code reçu par SMS et nouveau mot de passe.
+class _ResetStep extends StatefulWidget {
+  const _ResetStep({required this.state});
+  final SignInState state;
+
+  @override
+  State<_ResetStep> createState() => _ResetStepState();
+}
+
+class _ResetStepState extends State<_ResetStep> {
+  final _code = TextEditingController();
+  final _password = TextEditingController();
+  bool _hidden = true;
+  bool _submitted = false;
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _code.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  int get _secondsLeft {
+    final at = widget.state.resendAvailableAt;
+    if (at == null) return 0;
+    final left = at.difference(DateTime.now()).inSeconds + 1;
+    return left < 0 ? 0 : left;
+  }
+
+  void _submit() {
+    setState(() => _submitted = true);
+    if (PasswordPolicy.check(_password.text) != null) return;
+    context.read<SignInCubit>().submitReset(code: _code.text, newPassword: _password.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wait = _secondsLeft;
+    return Gap(
+      children: [
+        WamiTextField(
+          hint: '••••••',
+          label: 'Code à 6 chiffres',
+          icon: Icons.sms_outlined,
+          controller: _code,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        ),
+        WamiTextField(
+          hint: '8 caractères, majuscule, minuscule, chiffre',
+          label: 'Nouveau mot de passe',
+          icon: Icons.lock_outline_rounded,
+          controller: _password,
+          obscureText: _hidden,
+          errorText: _submitted ? PasswordPolicy.check(_password.text) : null,
+          onChanged: (_) {
+            if (_submitted) setState(() {});
+          },
+          onSubmitted: (_) => _submit(),
+          suffix: IconButton(
+            tooltip: _hidden ? 'Afficher' : 'Masquer',
+            icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+            onPressed: () => setState(() => _hidden = !_hidden),
+          ),
+        ),
+        WamiPrimaryButton(label: 'Changer le mot de passe', loading: widget.state.busy, onPressed: _submit),
+        WamiGhostButton(
+          label: wait > 0 ? 'Renvoyer le code (${wait}s)' : 'Renvoyer le code',
+          onPressed: wait > 0 || widget.state.busy ? null : () => context.read<SignInCubit>().forgotPassword(),
+        ),
+        WamiGhostButton(label: 'Retour', onPressed: () => context.read<SignInCubit>().changePhone()),
       ],
     );
   }

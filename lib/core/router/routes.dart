@@ -22,6 +22,7 @@ abstract final class Routes {
   static const accountSettings = '/account/settings';
   static const accountSupport = '/account/support';
   static const accountPrivacy = '/account/privacy';
+  static const accountPassword = '/account/password';
 
   // Parcours Mobilité.
   static const ride = '/ride';

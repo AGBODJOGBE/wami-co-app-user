@@ -110,6 +110,7 @@ class AppRouter {
                   _full('settings', (_) => const SettingsPage()),
                   _full('support', (_) => const SupportPage()),
                   _full('privacy', (_) => const PrivacyPage()),
+                  _full('password', (_) => const ChangePasswordPage()),
                 ],
               ),
             ],

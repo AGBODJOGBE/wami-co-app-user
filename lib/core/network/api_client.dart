@@ -33,17 +33,21 @@ class ApiClient {
     return _send(() => _dio.post<Object?>(path, data: body));
   }
 
-  Future<Map<String, dynamic>> put(String path, {Object? body}) {
-    return _send(() => _dio.put<Object?>(path, data: body));
+  /// [keepSession] : un 401 de cette requête ne veut pas dire « session expirée » (ex. mauvais mot de passe actuel).
+  Future<Map<String, dynamic>> put(String path, {Object? body, bool keepSession = false}) {
+    return _send(() => _dio.put<Object?>(path, data: body, options: _keep(keepSession)));
   }
 
   Future<Map<String, dynamic>> patch(String path, {Object? body}) {
     return _send(() => _dio.patch<Object?>(path, data: body));
   }
 
-  Future<Map<String, dynamic>> delete(String path, {Object? body}) {
-    return _send(() => _dio.delete<Object?>(path, data: body));
+  Future<Map<String, dynamic>> delete(String path, {Object? body, bool keepSession = false}) {
+    return _send(() => _dio.delete<Object?>(path, data: body, options: _keep(keepSession)));
   }
+
+  static Options? _keep(bool keepSession) =>
+      keepSession ? Options(extra: {AuthInterceptor.keepSessionKey: true}) : null;
 
   Future<Map<String, dynamic>> _send(Future<Response<Object?>> Function() request) async {
     try {

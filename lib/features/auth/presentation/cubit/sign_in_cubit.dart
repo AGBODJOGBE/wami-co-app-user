@@ -9,7 +9,7 @@ import '../../domain/entities/auth_entities.dart';
 import '../../domain/usecases/auth_usecases.dart';
 
 /// Étapes du parcours de connexion : numéro → code SMS → mot de passe (compte existant) ou inscription.
-enum SignInStep { phone, code, password, register }
+enum SignInStep { phone, code, password, register, reset }
 
 class SignInState extends Equatable {
   const SignInState({
@@ -19,6 +19,7 @@ class SignInState extends Equatable {
     this.failure,
     this.session,
     this.resendAvailableAt,
+    this.notice,
   });
 
   final SignInStep step;
@@ -34,6 +35,9 @@ class SignInState extends Equatable {
   /// Heure à partir de laquelle un nouveau code peut être demandé.
   final DateTime? resendAvailableAt;
 
+  /// Information à montrer une fois (ex. « Mot de passe modifié »).
+  final String? notice;
+
   bool get busy => status == LoadStatus.loading;
 
   SignInState copyWith({
@@ -43,6 +47,7 @@ class SignInState extends Equatable {
     Failure? failure,
     AuthSession? session,
     DateTime? resendAvailableAt,
+    String? notice,
   }) {
     return SignInState(
       step: step ?? this.step,
@@ -51,11 +56,12 @@ class SignInState extends Equatable {
       failure: failure,
       session: session ?? this.session,
       resendAvailableAt: resendAvailableAt ?? this.resendAvailableAt,
+      notice: notice,
     );
   }
 
   @override
-  List<Object?> get props => [step, phone, status, failure, session, resendAvailableAt];
+  List<Object?> get props => [step, phone, status, failure, session, resendAvailableAt, notice];
 }
 
 class SignInCubit extends Cubit<SignInState> {
@@ -64,12 +70,16 @@ class SignInCubit extends Cubit<SignInState> {
     required VerifyOtp verifyOtp,
     required LoginPassenger login,
     required RegisterPassenger register,
+    required RequestPasswordReset requestReset,
+    required ResetPassword resetPassword,
     this.resendDelay = const Duration(seconds: 60),
     DateTime Function()? clock,
   })  : _sendOtp = sendOtp,
         _verifyOtp = verifyOtp,
         _login = login,
         _register = register,
+        _requestReset = requestReset,
+        _resetPassword = resetPassword,
         _now = clock ?? DateTime.now,
         super(const SignInState());
 
@@ -77,6 +87,8 @@ class SignInCubit extends Cubit<SignInState> {
   final VerifyOtp _verifyOtp;
   final LoginPassenger _login;
   final RegisterPassenger _register;
+  final RequestPasswordReset _requestReset;
+  final ResetPassword _resetPassword;
   final Duration resendDelay;
   final DateTime Function() _now;
 
@@ -156,6 +168,42 @@ class SignInCubit extends Cubit<SignInState> {
       r.fold(
         (f) => state.copyWith(status: LoadStatus.failure, failure: f),
         (s) => state.copyWith(status: LoadStatus.ready, session: s),
+      ),
+    );
+  }
+
+  /// « Mot de passe oublié » : un code part par SMS, puis on choisit un nouveau mot de passe.
+  Future<void> forgotPassword() async {
+    final at = state.resendAvailableAt;
+    // Pas de nouvelle demande tant que le délai du dernier envoi n'est pas écoulé (le back limite aussi).
+    final reuse = state.step == SignInStep.reset && at != null && _now().isBefore(at);
+    if (reuse) return;
+    emit(state.copyWith(status: LoadStatus.loading));
+    final r = await _requestReset(state.phone);
+    emit(
+      r.fold(
+        (f) => state.copyWith(status: LoadStatus.failure, failure: f),
+        (_) => state.copyWith(
+          step: SignInStep.reset,
+          status: LoadStatus.ready,
+          resendAvailableAt: _now().add(resendDelay),
+        ),
+      ),
+    );
+  }
+
+  Future<void> submitReset({required String code, required String newPassword}) async {
+    emit(state.copyWith(status: LoadStatus.loading));
+    final r =
+        await _resetPassword(ResetPasswordParams(phone: state.phone, code: code.trim(), newPassword: newPassword));
+    emit(
+      r.fold(
+        (f) => state.copyWith(status: LoadStatus.failure, failure: f),
+        (_) => state.copyWith(
+          step: SignInStep.password,
+          status: LoadStatus.ready,
+          notice: 'Mot de passe modifié. Connectez-vous avec le nouveau.',
+        ),
       ),
     );
   }

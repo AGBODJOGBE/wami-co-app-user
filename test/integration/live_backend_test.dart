@@ -101,7 +101,9 @@ void main() {
     'transfert vers soi-même : refusé',
     () async {
       expect(
-          () => WalletApiDataSource(api, session).transfer(phone!, 100, null), throwsA(isA<BusinessRuleException>()),);
+        () => WalletApiDataSource(api, session).transfer(phone!, 100, null),
+        throwsA(isA<BusinessRuleException>()),
+      );
     },
     skip: skip,
   );
@@ -157,6 +159,24 @@ void main() {
       }
       final list = await ActivityApiDataSource(api).fetch();
       expect(list.first.status.name, 'cancelled');
+    },
+    skip: skip,
+  );
+
+  test(
+    'mot de passe : le mauvais mot de passe actuel est refusé sans fermer la session, puis changement et retour',
+    () async {
+      final account = AccountApiDataSource(api, session);
+      await expectLater(
+        account.changePassword('Mauvais1pass', 'Temporaire9pass'),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', 'Mot de passe actuel incorrect.')),
+      );
+      // La session est toujours valable : le profil se lit.
+      expect((await account.profile()).phone, phone);
+
+      await account.changePassword(password!, 'Temporaire9pass');
+      // Remet le mot de passe d'origine pour ne pas gêner les exécutions suivantes.
+      await account.changePassword('Temporaire9pass', password);
     },
     skip: skip,
   );

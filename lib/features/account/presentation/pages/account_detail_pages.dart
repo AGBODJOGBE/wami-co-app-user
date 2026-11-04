@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/service_locator.dart';
 import '../../../../core/theme/wami_colors.dart';
 import '../../../../core/theme/wami_palette.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/password_policy.dart';
 import '../../../../core/utils/load_status.dart';
 import '../../../../core/widgets/glass_card.dart';
 import '../../../../core/widgets/wami_basics.dart';
@@ -14,6 +16,7 @@ import '../../../../core/widgets/wami_selectors.dart';
 import '../../../../core/widgets/wami_text_field.dart';
 import '../../domain/entities/app_settings.dart';
 import '../cubit/profile_cubit.dart';
+import '../cubit/security_cubit.dart';
 import '../cubit/settings_cubit.dart';
 import '../cubit/support_cubit.dart';
 
@@ -339,8 +342,11 @@ class PrivacyPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
-    return BlocProvider(
-      create: (_) => sl<SupportCubit>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => sl<SupportCubit>()),
+        BlocProvider(create: (_) => sl<SecurityCubit>()),
+      ],
       child: BlocBuilder<SettingsCubit, SettingsState>(
         builder: (context, state) {
           final s = state.settings;
@@ -423,7 +429,7 @@ class PrivacyPage extends StatelessWidget {
                     ListTile(
                       leading: IconBadge(Icons.delete_outline_rounded, color: context.wami.danger),
                       title: Text('Supprimer mon compte', style: t.titleSmall?.copyWith(color: context.wami.danger)),
-                      onTap: () => showWamiMessage(context, 'Suppression : confirmation et délai légal à valider'),
+                      onTap: () => _confirmDeleteAccount(context),
                     ),
                   ],
                 ),
@@ -432,6 +438,170 @@ class PrivacyPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Suppression du compte : le mot de passe confirme l'intention. Le délai légal reste à valider.
+Future<void> _confirmDeleteAccount(BuildContext context) async {
+  final cubit = context.read<SecurityCubit>();
+  final password = await showDialog<String>(context: context, builder: (_) => const _DeleteAccountDialog());
+  if (password == null) return;
+  await cubit.deleteAccount(password);
+  if (!context.mounted) return;
+  final failure = cubit.state.failure;
+  // Succès : la session se termine et le routeur ramène à la connexion.
+  if (failure != null) showWamiMessage(context, failure.message);
+}
+
+/// Fenêtre de confirmation. Elle possède son champ de saisie : le libérer depuis l'extérieur le ferait
+/// servir après sa destruction pendant l'animation de fermeture.
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Supprimer mon compte ?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Cette action est définitive : votre profil et l’accès à votre portefeuille seront supprimés. '
+            'Rechargez ou dépensez votre solde avant. Délai légal de conservation : [à valider].',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _password,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Mot de passe'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+        TextButton(onPressed: () => Navigator.pop(context, _password.text), child: const Text('Supprimer')),
+      ],
+    );
+  }
+}
+
+// ─── Mot de passe ────────────────────────────────────────────────────────────
+
+class ChangePasswordPage extends StatelessWidget {
+  const ChangePasswordPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(create: (_) => sl<SecurityCubit>(), child: const _ChangePasswordView());
+  }
+}
+
+class _ChangePasswordView extends StatefulWidget {
+  const _ChangePasswordView();
+
+  @override
+  State<_ChangePasswordView> createState() => _ChangePasswordViewState();
+}
+
+class _ChangePasswordViewState extends State<_ChangePasswordView> {
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  final _confirmation = TextEditingController();
+  bool _hidden = true;
+  bool _submitted = false;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  void _submit(BuildContext context) {
+    setState(() => _submitted = true);
+    context.read<SecurityCubit>().changePassword(
+          current: _current.text,
+          next: _next.text,
+          confirmation: _confirmation.text,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<SecurityCubit, SecurityState>(
+      listenWhen: (a, b) => a.status != b.status,
+      listener: (context, state) {
+        if (state.status == LoadStatus.ready) {
+          showWamiMessage(context, 'Mot de passe modifié.');
+          context.pop();
+        } else if (state.status == LoadStatus.failure) {
+          showWamiMessage(context, state.failure!.message);
+        }
+      },
+      builder: (context, state) {
+        final toggle = IconButton(
+          tooltip: _hidden ? 'Afficher' : 'Masquer',
+          icon: Icon(_hidden ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+          onPressed: () => setState(() => _hidden = !_hidden),
+        );
+        return WamiScreen(
+          title: 'Mot de passe',
+          subtitle: 'Choisissez un mot de passe que vous n’utilisez nulle part ailleurs.',
+          body: Gap(
+            children: [
+              WamiTextField(
+                hint: 'Mot de passe actuel',
+                label: 'Mot de passe actuel',
+                icon: Icons.lock_outline_rounded,
+                controller: _current,
+                obscureText: _hidden,
+                autofocus: true,
+                suffix: toggle,
+              ),
+              WamiTextField(
+                hint: '8 caractères, majuscule, minuscule, chiffre',
+                label: 'Nouveau mot de passe',
+                icon: Icons.lock_reset_rounded,
+                controller: _next,
+                obscureText: _hidden,
+                errorText: _submitted && _next.text.isNotEmpty ? PasswordPolicy.check(_next.text) : null,
+                onChanged: (_) {
+                  if (_submitted) setState(() {});
+                },
+              ),
+              WamiTextField(
+                hint: 'Confirmer le nouveau mot de passe',
+                label: 'Confirmation',
+                icon: Icons.lock_reset_rounded,
+                controller: _confirmation,
+                obscureText: _hidden,
+                onSubmitted: (_) => _submit(context),
+              ),
+            ],
+          ),
+          bottom: WamiPrimaryButton(
+            label: 'Modifier le mot de passe',
+            loading: state.busy,
+            onPressed: () => _submit(context),
+          ),
+        );
+      },
     );
   }
 }

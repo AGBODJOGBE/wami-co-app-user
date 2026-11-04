@@ -27,4 +27,11 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Future<Result<void>> requestDataExport() => guard(_remote.requestDataExport);
+
+  @override
+  Future<Result<void>> changePassword({required String currentPassword, required String newPassword}) =>
+      guard(() => _remote.changePassword(currentPassword, newPassword));
+
+  @override
+  Future<Result<void>> deleteAccount(String password) => guard(() => _remote.deleteAccount(password));
 }

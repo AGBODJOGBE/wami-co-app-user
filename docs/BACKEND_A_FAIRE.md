@@ -41,6 +41,15 @@ Légende : 🔴 empêche l'app de fonctionner · 🟠 fonction du mobile sans é
   Quiconque détient un jeton peut rediriger le compte. L'écran Profil de l'app appelle cette route.
 - **À faire** : exiger un code OTP envoyé au nouveau numéro (`send-otp` puis `verify-otp` avant le changement).
 
+### 7. La suppression du compte plante après avoir supprimé le profil
+- **Constat** : `DELETE /api/passengers/profile { password }` avec le bon mot de passe répond `500`, mais le profil est bien supprimé
+  (ensuite `GET /api/passengers/profile` répond 404 et la connexion échoue avec « Passenger profile not found not found »).
+- **Cause** : `passenger.routes.ts:219` appelle `user.deactivatePassengerProfile()`, méthode qui n'existe pas dans `User`
+  (il n'y a que `activatePassengerProfile`). L'indicateur `hasPassengerProfile` de l'utilisateur reste donc à `true`.
+- **À faire** : ajouter `deactivatePassengerProfile()` à `User` (et la traiter de façon atomique avec la suppression du profil).
+  Corriger aussi la faute dans le message : « not found not found ».
+- **Côté app** : en cas de 500, l'app vérifie si le profil existe encore et, s'il a disparu, déconnecte l'utilisateur.
+
 ---
 
 ## 🟠 Fonctions du mobile que le back ne gère pas
@@ -76,6 +85,11 @@ L'app les conserve. Quand le back les proposera, il suffira de brancher la sourc
 ---
 
 ## 🟡 Améliorations
+
+- **Mot de passe oublié** : le code part par un événement que traite le *worker* (`npm run dev:worker` / `start:worker`). Sans lui, aucun SMS
+  n'est envoyé (contrairement à `send-otp`, synchrone). À prévoir dans le déploiement (`start:all`).
+- **Mot de passe oublié, numéro inconnu** : le back répond « un code a été envoyé » même sans compte (bien), mais la réponse du cas connu
+  contient `phoneNumber`, ce qui permet de distinguer les deux. À aligner.
 
 - **Idempotence** : aucune route d'écriture n'accepte `Idempotency-Key` (recharge, transfert, demande de course, commande de livraison). Un retry réseau après timeout peut dupliquer un paiement. L'app ignore les doubles appuis mais ne peut rien contre un retry.
 - **Erreurs** : réponses mêlant `{ error: "texte" }` et `{ error: { code, message } }`, en anglais pour la plupart. Proposition : toujours `{ success:false, error:{ code, message } }` avec un `code` stable et `message` en français. L'app traduit pour l'instant les refus du portefeuille et la limite de tentatives.
