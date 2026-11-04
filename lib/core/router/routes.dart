@@ -16,6 +16,7 @@ abstract final class Routes {
 
   // Portefeuille.
   static const walletTopUp = '/wallet/top-up';
+  static const walletWithdraw = '/wallet/withdraw';
   static const walletTransfer = '/wallet/transfer';
   static const walletTransferReview = '/wallet/transfer/review';
   static const walletSuccess = '/wallet/success';

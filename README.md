@@ -46,7 +46,7 @@ Avec `WAMI_FAKE_BACKEND=false`, ces modules parlent au vrai back. Tout le reste 
 | Module | Routes utilisées | Notes |
 |---|---|---|
 | Connexion | `POST /api/passengers/send-otp`, `verify-otp`, `register`, `login`, `password/forgot`, `password/reset` | Numéro → code SMS → mot de passe ou inscription. Le jeton (1 an, sans renouvellement) est rangé dans le trousseau de l'appareil ; un 401 renvoie vers la connexion. |
-| Portefeuille | `GET/POST /api/wallets/:walletId/{balance,transactions,recharge,transfer}`, `GET /api/payment/status/:id` | Recharge Mobile Money asynchrone suivie jusqu'à sa validation. Transfert par numéro de téléphone. |
+| Portefeuille | `GET/POST /api/wallets/:walletId/{balance,transactions,recharge,transfer,withdraw}`, `GET /api/payment/status/:id` | Recharge Mobile Money asynchrone suivie jusqu'à sa validation.  Le retrait ne concerne que les gains d'affilié (carte « Gains d'affilié » + bouton Retirer). Transfert par numéro de téléphone. |
 | Compte | `GET /api/passengers/profile`, `PATCH /api/users/:id/{name,email,phone}`, `PUT /api/passengers/password`, `DELETE /api/passengers/profile` | Identité réelle ; niveau, lieux enregistrés et contact d'urgence restent côté app. |
 | Activités | `GET /api/passengers/rides`, `GET /api/passenger/delivery` | Courses et livraisons réunies. Si l'historique des courses échoue côté serveur, les livraisons restent affichées. |
 | Livraison | `POST /api/passenger/delivery/estimate`, `POST /api/passenger/delivery`, `GET /api/passenger/delivery/:id` | Véhicules proposés selon le colis (règle du back). Adresses géocodées, livraison programmée avec date et heure. Encaissement et « le destinataire paie » transmis mais ignorés par le back. |

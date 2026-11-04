@@ -83,3 +83,38 @@ class TransferMoney implements UseCase<WalletOverview, TransferParams> {
     return _repo.transfer(recipientPhone: p.recipientPhone, amount: p.amount, note: p.note);
   }
 }
+
+class WithdrawParams {
+  const WithdrawParams({required this.request, required this.withdrawable});
+  final WithdrawRequest request;
+
+  /// Gains d'affilié disponibles : on ne retire pas plus.
+  final int withdrawable;
+}
+
+/// Règles métier du retrait : montant minimum, plafond des gains, coordonnées du bénéficiaire.
+class RequestWithdrawal implements UseCase<Withdrawal, WithdrawParams> {
+  const RequestWithdrawal(this._repo);
+  final WalletRepository _repo;
+
+  @override
+  Future<Result<Withdrawal>> call(WithdrawParams p) async {
+    final r = p.request;
+    if (r.amount < r.method.defaultMinimum) {
+      return Err(ValidationFailure('Montant minimum : ${r.method.defaultMinimum} F.'));
+    }
+    if (r.amount > p.withdrawable) {
+      return const Err(ValidationFailure('Vous ne pouvez pas retirer plus que vos gains d’affilié.'));
+    }
+    bool blank(String? v) => v == null || v.trim().isEmpty;
+    switch (r.method) {
+      case WithdrawMethod.mobileMoney:
+        if (blank(r.phone)) return const Err(ValidationFailure('Saisissez un numéro Mobile Money valide.'));
+      case WithdrawMethod.bank:
+        if (blank(r.bankName) || blank(r.accountName) || blank(r.iban)) {
+          return const Err(ValidationFailure('Renseignez la banque, le titulaire du compte et l’IBAN.'));
+        }
+    }
+    return _repo.withdraw(r);
+  }
+}

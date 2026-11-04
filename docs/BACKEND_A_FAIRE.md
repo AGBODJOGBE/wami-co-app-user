@@ -107,6 +107,22 @@ annulation) ; ces points l'empêchent de fonctionner en production ou exposent d
 
 ---
 
+## 🟡 Retrait des gains d'affilié (`POST /api/wallets/:id/withdraw`)
+
+Vérifié sur le back local (gains d'affilié mis à 20 000 en base, vraie demande de retrait, puis nettoyage).
+
+1. **Swagger faux** : il dit « uniquement EARNINGS et PARTNER, 403 pour PAYMENT ». En réalité un wallet passager peut retirer, mais seulement son sous-solde `AFFILIATE`
+   (message `Insufficient AFFILIATE balance…`). Corriger la documentation ; l'app ne propose le retrait que s'il y a des gains d'affilié.
+2. **Messages en anglais** (`Minimum withdrawal for MOBILE_MONEY is 1000 FCFA — requested: 200 FCFA`, `Insufficient AFFILIATE balance…`,
+   `A withdrawal is already in progress for this wallet`) : l'app les traduit ; prévoir des codes stables.
+3. **Minimums** : l'app affiche 1 000 F (Mobile Money) et 5 000 F (virement), les valeurs par défaut du back. Ils sont modifiables par l'administration :
+   exposer `GET /api/wallets/config` (ou l'inclure dans `GET /balance`) pour que l'app affiche les vrais.
+4. **Suivi du retrait** : pas de `GET /api/wallets/:id/withdrawals` (statut `PENDING` → `COMPLETED` / `REJECTED`, motif). L'app ne peut pas dire au passager où en est sa demande ;
+   elle ne sait que lire le solde réservé. Un retrait en cours bloque les suivants (`409`), sans moyen de l'annuler côté passager.
+5. **Notification** de fin de retrait (virement fait ou refusé) à envoyer par le module notifications.
+
+---
+
 ## 🟠 Fonctions du mobile que le back ne gère pas
 
 > Les modules entiers qui n'ont aucune route (accueil, bus, hébergement, paramètres, SOS/partage/messagerie de course) sont spécifiés

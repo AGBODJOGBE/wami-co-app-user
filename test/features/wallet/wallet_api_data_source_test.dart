@@ -184,4 +184,76 @@ void main() {
       );
     });
   });
+
+  group('retrait des gains d’affilié', () {
+    const route = 'POST /api/wallets/w1/withdraw';
+
+    test('Mobile Money : corps envoyé, reçu lu', () async {
+      server.on(route, {
+        'success': true,
+        'data': {'withdrawalId': 'wd1', 'amount': 5000, 'status': 'PENDING', 'message': 'En cours de traitement.'},
+      });
+      final receipt = await wallet.withdraw(
+        const WithdrawRequest(amount: 5000, method: WithdrawMethod.mobileMoney, phone: '+2290197123456'),
+      );
+      expect(server.last(route)!.data, {
+        'amount': 5000,
+        'method': 'MOBILE_MONEY',
+        'recipientDetails': {'phone': '+2290197123456'},
+      });
+      expect(receipt.id, 'wd1');
+      expect(receipt.amount, 5000);
+    });
+
+    test('virement bancaire : coordonnées envoyées', () async {
+      server.on(route, {
+        'success': true,
+        'data': {'withdrawalId': 'wd2', 'amount': 8000},
+      });
+      await wallet.withdraw(
+        const WithdrawRequest(
+          amount: 8000,
+          method: WithdrawMethod.bank,
+          bankName: 'Ecobank Benin',
+          accountName: 'Awa Dossou',
+          iban: 'BJ123456789',
+        ),
+      );
+      expect(server.last(route)!.data, {
+        'amount': 8000,
+        'method': 'BANK_TRANSFER',
+        'recipientDetails': {'bankName': 'Ecobank Benin', 'accountName': 'Awa Dossou', 'iban': 'BJ123456789'},
+      });
+    });
+
+    test('refus du back traduits en français', () async {
+      const refusals = [
+        ('Minimum withdrawal for MOBILE_MONEY is 1000 FCFA — requested: 200 FCFA', 'Montant minimum : 1000 F.'),
+        (
+          'Insufficient AFFILIATE balance — required: 5000 FCFA, available: 0 FCFA',
+          'Vous ne pouvez retirer que vos gains d’affilié disponibles.',
+        ),
+        ('A withdrawal is already in progress for this wallet', 'Un retrait est déjà en cours de traitement.'),
+      ];
+      // Les réponses d'une même route sont rendues dans l'ordre.
+      for (final (english, _) in refusals) {
+        server.on(route, {'success': false, 'error': english}, status: 400);
+      }
+      for (final (english, french) in refusals) {
+        await expectLater(
+          wallet.withdraw(
+            const WithdrawRequest(amount: 200, method: WithdrawMethod.mobileMoney, phone: '+2290197123456'),
+          ),
+          throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', french)),
+          reason: english,
+        );
+      }
+    });
+
+    test('le solde lit les gains d’affilié à part, hors solde dépensable', () async {
+      final overview = await wallet.overview();
+      expect(overview.wallet.balance, 8500);
+      expect(overview.wallet.affiliateBalance, 9999);
+    });
+  });
 }

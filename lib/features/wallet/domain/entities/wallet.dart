@@ -1,13 +1,16 @@
 import 'package:equatable/equatable.dart';
 
 class Wallet extends Equatable {
-  const Wallet({required this.balance, required this.points, required this.holder});
+  const Wallet({required this.balance, required this.points, required this.holder, this.affiliateBalance = 0});
   final int balance;
   final int points;
   final String holder;
 
+  /// Gains d'affilié (code promo d'un influenceur) : retirables, jamais dépensables. Exclus de [balance].
+  final int affiliateBalance;
+
   @override
-  List<Object?> get props => [balance, points, holder];
+  List<Object?> get props => [balance, points, holder, affiliateBalance];
 }
 
 enum TransactionKind { ride, delivery, bus, lodging, topUp, transferOut, transferIn }
@@ -73,4 +76,51 @@ class WalletOverview extends Equatable {
 
   @override
   List<Object?> get props => [wallet, transactions];
+}
+
+enum WithdrawMethod {
+  mobileMoney('MOBILE_MONEY', 'Mobile Money', 1000),
+  bank('BANK_TRANSFER', 'Virement bancaire', 5000);
+
+  const WithdrawMethod(this.api, this.label, this.defaultMinimum);
+  final String api;
+  final String label;
+
+  /// Minimum appliqué par défaut par le back (modifiable par l'administration) : le back reste juge.
+  final int defaultMinimum;
+}
+
+/// Demande de retrait des gains d'affilié.
+class WithdrawRequest extends Equatable {
+  const WithdrawRequest({
+    required this.amount,
+    required this.method,
+    this.phone,
+    this.bankName,
+    this.accountName,
+    this.iban,
+  });
+
+  final int amount;
+  final WithdrawMethod method;
+
+  /// Numéro Mobile Money, au format international.
+  final String? phone;
+  final String? bankName;
+  final String? accountName;
+  final String? iban;
+
+  @override
+  List<Object?> get props => [amount, method, phone, bankName, accountName, iban];
+}
+
+/// Retrait pris en compte par le back : il est traité ensuite par l'équipe.
+class Withdrawal extends Equatable {
+  const Withdrawal({required this.id, required this.amount, this.message});
+  final String id;
+  final int amount;
+  final String? message;
+
+  @override
+  List<Object?> get props => [id, amount, message];
 }

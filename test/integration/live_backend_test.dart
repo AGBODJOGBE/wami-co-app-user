@@ -29,6 +29,7 @@ import 'package:wami/features/mobility/domain/entities/place.dart';
 import 'package:wami/features/mobility/domain/entities/ride.dart';
 import 'package:wami/features/mobility/domain/entities/vehicle_offer.dart';
 import 'package:wami/features/wallet/data/datasources/wallet_data_sources.dart';
+import 'package:wami/features/wallet/domain/entities/wallet.dart';
 
 /// Test contre un vrai back wami-co. Ignoré sans `WAMI_LIVE_API`.
 ///
@@ -373,6 +374,45 @@ void main() {
         throwsA(
           isA<BusinessRuleException>().having((e) => e.message, 'message', contains('ne peut plus être annulée')),
         ),
+      );
+    },
+    skip: skip,
+  );
+
+  test(
+    'retrait : gains d’affilié lus à part, refus en français (minimum, plafond), demande réelle si WAMI_LIVE_WITHDRAW',
+    () async {
+      final wallets = WalletApiDataSource(api, session);
+      final before = (await wallets.overview()).wallet;
+      expect(before.affiliateBalance, greaterThanOrEqualTo(0));
+
+      await expectLater(
+        wallets
+            .withdraw(const WithdrawRequest(amount: 200, method: WithdrawMethod.mobileMoney, phone: '+2290197123456')),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('Montant minimum'))),
+      );
+      await expectLater(
+        wallets.withdraw(
+          WithdrawRequest(
+            amount: before.affiliateBalance + 5000,
+            method: WithdrawMethod.mobileMoney,
+            phone: '+2290197123456',
+          ),
+        ),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('gains d’affilié'))),
+      );
+
+      // Une vraie demande réserve le montant et bloque les suivantes : seulement sur demande explicite.
+      if (Platform.environment['WAMI_LIVE_WITHDRAW'] == null || before.affiliateBalance < 1000) return;
+      final receipt = await wallets.withdraw(
+        const WithdrawRequest(amount: 1000, method: WithdrawMethod.mobileMoney, phone: '+2290197123456'),
+      );
+      expect(receipt.id, isNotEmpty);
+      expect((await wallets.overview()).wallet.affiliateBalance, before.affiliateBalance - 1000);
+      await expectLater(
+        wallets
+            .withdraw(const WithdrawRequest(amount: 1000, method: WithdrawMethod.mobileMoney, phone: '+2290197123456')),
+        throwsA(isA<BusinessRuleException>().having((e) => e.message, 'message', contains('déjà en cours'))),
       );
     },
     skip: skip,
